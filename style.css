@@ -1,1 +1,190 @@
+body {
+    margin: 0;
+    background: #0e302d; /* 사이트 배경 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
 
+canvas {
+    background: #1d1d1d; /* 게임 캔버스 배경 */
+    width: 100%;         /* 부모(.game-container) 너비를 꽉 채움 */
+    height: 100%;
+    display: block;
+}
+
+/* 캔버스와 오버레이를 감싸는 부모 컨테이너 */
+/* [수정] 기존에는 width/height가 1200px/675px로 고정되어 있어서
+   화면이 1200px보다 좁은 모바일/작은 창에서는 컨테이너가 줄어들지 않고
+   좌우가 잘리거나 오버레이 버튼 위치가 화면 밖으로 밀려나는 문제가 있었음.
+   -> 뷰포트에 맞춰 줄어들 수 있도록 상대 단위 + aspect-ratio로 변경 */
+.game-container {
+    position: relative;
+    width: 100%;
+    max-width: 1200px;
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+}
+
+/* 일시정지 버튼 (캔버스 내부 기준 좌측 상단) */
+#pauseBtn {
+    position: absolute;
+    top: 3%;
+    left: 2%;
+    width: 4.16%; /* 1200px 기준 50px 비례 */
+    height: auto;
+    aspect-ratio: 1 / 1; /* 정사각형 유지 */
+    border-radius: 50%;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.8);
+    font-size: 1.5vw; /* 글자 크기도 화면 비례 */
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10;
+}
+
+/* 일시정지 오버레이 전체 화면 - 캔버스 영역만 정확히 덮음 */
+#pauseOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5); /* 살짝 불투명 처리 */
+    display: flex;
+    justify-content: center; /* 캔버스 가로 정중앙 */
+    align-items: center;     /* 캔버스 세로 정중앙 */
+    z-index: 20;
+}
+
+/* 내부 콘텐츠 정렬 */
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    width: 100%;
+}
+
+/* 가운데 큰 플레이 버튼 */
+#resumeBtn {
+    width: 8.33%; /* 1200px 기준 100px 비례 */
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    border: none;
+    background-color: #fff;
+    font-size: 3vw;
+    cursor: pointer;
+}
+
+/* 하단 서브 버튼 레이아웃 */
+.sub-buttons {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    width: 100%;
+}
+
+.sub-buttons button {
+    width: 5%; /* 1200px 기준 60px 비례 */
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    border: none;
+    background-color: #fff;
+    font-size: 1.8vw;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* 게임오버 오버레이 전체 화면 */
+#gameOverOverlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* 살짝 더 어두운 불투명 처리 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 30;
+    opacity: 0;
+    transition: opacity 0.5s ease; /* 부드럽게 나타나는 효과 */
+}
+
+/* 게임오버 활성화 시 스타일 */
+#gameOverOverlay.show {
+    opacity: 1;
+}
+
+/* 게임 오버 텍스트 스타일 */
+#gameOverText {
+    color: #ff3b30;
+    font-size: 6vw; /* 화면 비례 큰 글자 */
+    font-weight: bold;
+    margin: 0 0 20px 0;
+    text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+    user-select: none;
+}
+
+/* 홈 화면 레이어 (기존과 동일하게 중앙 정렬 유지) */
+#homeScreen.ui-layer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* 인게임 레이어 (크기 변화나 왜곡을 막기 위해 꽉 채우는 절대 위치로 설정) */
+#gameScreen.ui-layer {
+    display: block; /* flex를 지우고 block으로 변경하여 내부 요소 왜곡 방지 */
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* 홈 화면 타이틀 및 버튼 스타일 정리 */
+.game-title {
+    font-size: 54px;
+    margin-bottom: 30px;
+    color: #ffffff; /* 사이트 배경이 어두우므로 흰색 계열로 변경 */
+    font-family: sans-serif;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+#startBtn {
+    padding: 15px 50px;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    border-radius: 30px;
+    background-color: #ffffff;
+    color: #0e302d;
+    transition: transform 0.1s, background-color 0.2s;
+}
+
+#startBtn:hover {
+    background-color: #e0e0e0;
+    transform: scale(1.05);
+}
+
+/* 숨김 처리 플래그 (기존 유지) */
+.hidden {
+    display: none !important;
+}

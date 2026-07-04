@@ -1,1 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <!-- [수정] 모바일 터치 이벤트를 이미 구현했는데 viewport 태그가 없어서
+         모바일 브라우저가 데스크톱 레이아웃(약 980px)으로 축소 렌더링하는 문제 수정 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="style.css">
+    <title>[다이노뮤턴트]다이노 런</title>
+</head>
+<body>
+    <div class="game-container">
+        <!-- 1. 홈 화면 레이어 -->
+        <div id="homeScreen" class="ui-layer">
+            <h1 class="game-title">다이노 런</h1>
+            <button id="startBtn" onclick="startGameFromHome()">플레이 ▶</button>
+        </div>
 
+        <!-- 2. 인게임 레이어 -->
+        <div id="gameScreen" class="ui-layer hidden">
+            <canvas id="gameCanvas"></canvas>
+            <button id="pauseBtn" onclick="togglePause()">Ⅱ</button>
+
+            <div id="pauseOverlay" class="hidden">
+                <div class="overlay-content">
+                    <button id="resumeBtn" onclick="togglePause()">▶</button>
+                    <div class="sub-buttons">
+                        <button id="homeBtn" onclick="goHome()">🏠</button>
+                        <button id="restartBtn" onclick="restartGame()">🔄</button>
+                        <button id="soundBtn" onclick="toggleSound()">🔊</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="gameOverOverlay" class="hidden">
+                <div class="overlay-content">
+                    <h1 id="gameOverText">GAME OVER</h1>
+                    <div class="sub-buttons">
+                        <button id="goHomeBtn" onclick="goHome()">🏠</button>
+                        <button id="retryBtn" onclick="restartGame()">🔄</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 스크립트 로드: 의존성 순서(클래스 정의 -> 핸들러 -> 메인 로직) -->
+    <script src="js/background.js"></script>
+    <script src="js/dino.js"></script>
+    <script src="js/obstacle.js"></script>
+    <script src="js/gameover.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
