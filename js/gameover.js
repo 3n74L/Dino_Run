@@ -24,6 +24,23 @@ function gameOver() {
     dinoDieY = dino.y - dino.bounce;
     dinoDieX = dino.x;
     dinoDieAngle = 0;
+
+    // 최종 기록 확정 및 최고 기록 갱신 (currentScore/bestScore는 main.js에서 관리)
+    const finalScore = Math.floor(currentScore);
+    if (finalScore > bestScore) {
+        bestScore = finalScore;
+        localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(bestScore));
+    }
+    const finalScoreText = document.getElementById('finalScoreText');
+    if (finalScoreText) finalScoreText.innerText = `${finalScore}M`;
+    updateScoreUI();
+
+    // [신규] 랭킹 서버에 최종 기록 제출 (js/leaderboard.js). Supabase가 아직 설정 안 됐거나
+    // 이번 판이 start-run 없이 시작됐으면 이 함수는 아무것도 하지 않고 조용히 반환된다.
+    if (typeof submitScoreToLeaderboard === 'function') {
+        const nickname = (typeof nicknameInput !== 'undefined' && nicknameInput) ? nicknameInput.value : '';
+        submitScoreToLeaderboard(nickname, finalScore);
+    }
 }
 
 // 루프 내에서 호출될 게임오버 렌더링 연출 함수
@@ -35,8 +52,8 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
     // 기존에는 여기서 밤/밝기 필터를 전혀 설정하지 않아서, 배경만 어두워지고
     // 장애물/공룡은 이전 프레임에 남아있던 필터 상태(대부분 'none')로 그려졌습니다.
     // background.getFilterString()을 호출해 게임 진행 중과 완전히 동일한 밝기 필터를
-    // 장애물과 공룡에도 적용합니다.
-    ctx.filter = background.getFilterString();
+    // 장애물과 공룡에도 적용합니다. (약한 강도(1.0)는 main.js의 게임 루프와 동일하게 맞춤)
+    ctx.filter = background.getFilterString(1.0);
 
     obstacles.forEach(obs => obs.draw());
 
@@ -48,12 +65,14 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
         }
 
         ctx.save();
+        const originalX = dino.x;
         const originalY = dino.y;
         const originalBounce = dino.bounce;
         dino.x = dinoDieX;
         dino.y = dinoDieY;
         dino.bounce = 0;
         dino.draw();
+        dino.x = originalX;
         dino.y = originalY;
         dino.bounce = originalBounce;
         ctx.restore();
@@ -86,6 +105,7 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
         ctx.rotate(dinoDieAngle * Math.PI / 180);
         ctx.translate(-centerX, -centerY);
 
+        const originalX = dino.x;
         const originalY = dino.y;
         const originalBounce = dino.bounce;
         dino.x = dinoDieX;
@@ -93,6 +113,7 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
         dino.bounce = 0;
         dino.draw();
 
+        dino.x = originalX;
         dino.y = originalY;
         dino.bounce = originalBounce;
         ctx.restore();

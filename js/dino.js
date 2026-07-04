@@ -21,7 +21,6 @@ class Dino {
         this.hitboxOffset = { x: 30, y: 10 };
         this.width = 50;
         this.height = 60;
-        this.showHitbox = true;
 
         this.legAngle = 0;
         this.bounce = 0;
@@ -108,7 +107,10 @@ class Dino {
         // drawPart가 이제 save/restore로 자기 변환을 알아서 정리하기 때문에,
         // 여기서는 draw()가 호출된 시점의 좌표계(바깥 회전 포함)가 그대로 유지된 상태.
         // 히트박스도 그 좌표계 기준으로 그려짐 (평상시엔 항상 identity라 결과는 동일).
-        if (this.showHitbox) {
+        // [수정] this.showHitbox(항상 false로 하드코딩되어 있었음)가 gameConfig.debugHitbox와
+        // AND로 묶여 있어서, 설정에서 히트박스를 켜도 공룡 히트박스만 절대 표시되지 않던 버그.
+        // obstacle.js와 동일하게 gameConfig.debugHitbox 하나만 기준으로 삼도록 수정.
+        if (window.gameConfig && window.gameConfig.debugHitbox) {
             this.ctx.strokeStyle = 'red';
             this.ctx.lineWidth = 3;
             this.ctx.strokeRect(this.x + this.hitboxOffset.x, this.y - this.bounce + this.hitboxOffset.y, this.width, this.height);

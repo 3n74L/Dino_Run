@@ -118,18 +118,21 @@ class Obstacle {
         this.ctx.drawImage(this.image, renderX, renderY, this.width, this.height);
 
         // --- 변경된 충돌 전용 히트박스 시각화 (빨간색 사각형) ---
-        // 가로 중앙 정렬 기준 보정
-        const xDiff = (this.width - this.hitboxWidth) / 2;
-        const hitboxX = renderX + xDiff;
+        // [수정] 디버그용 히트박스가 항상 켜져 있던 문제 -> gameConfig.debugHitbox일 때만 표시
+        if (window.gameConfig && window.gameConfig.debugHitbox) {
+            // 가로 중앙 정렬 기준 보정
+            const xDiff = (this.width - this.hitboxWidth) / 2;
+            const hitboxX = renderX + xDiff;
 
-        // 세로 바닥 정렬 기준 보정
-        const yDiff = this.height - this.hitboxHeight;
-        const hitboxY = renderY + yDiff;
+            // 세로 바닥 정렬 기준 보정
+            const yDiff = this.height - this.hitboxHeight;
+            const hitboxY = renderY + yDiff;
 
-        this.ctx.save();
-        this.ctx.strokeStyle = 'red';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(hitboxX, hitboxY, this.hitboxWidth, this.hitboxHeight);
-        this.ctx.restore();
+            this.ctx.save();
+            this.ctx.strokeStyle = 'red';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(hitboxX, hitboxY, this.hitboxWidth, this.hitboxHeight);
+            this.ctx.restore();
+        }
     }
 }

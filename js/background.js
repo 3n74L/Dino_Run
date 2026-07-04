@@ -53,8 +53,9 @@ class Background {
         this.sunScale = 0.3;
         this.moonScale = 0.45;
 
-        this.celestialSpeedRate = 0.096;
-        this.transitionSpeed = 12;
+        // [수정] 해/달 이동 속도를 기존 대비 20% 감속 (0.096->0.0768, 12->9.6)
+        this.celestialSpeedRate = 0.0768;
+        this.transitionSpeed = 9.6;
         this.spawnMargin = 15;
 
         // [신규] 진입(phase_in) 이후 등속 궤도 속도로 자연스럽게 감속하기 위한 값들.
@@ -100,7 +101,12 @@ class Background {
         this.layers.forEach(layer => {
             if (layer.drawWidth === 0) return;
             layer.x -= baseSpeed * layer.multiplier;
-            if (layer.x <= -layer.drawWidth) layer.x = 0;
+            // [수정] 기존에는 x가 -drawWidth를 넘어가면(오버슈트) 그 초과분을 버리고
+            // 그냥 0으로 리셋했음. 평소엔 티가 안 나지만 speed가 커서 한 프레임 이동량이
+            // 클수록 오버슈트도 커져서, 리셋 순간 배경이 그만큼 순간적으로 튀며 검은 틈이
+            // 잠깐 보이는 원인이 됐다. 0으로 되돌리는 대신 drawWidth를 더해 초과분을 그대로
+            // 이어가도록(나머지 보존) 바꿔서 스냅 없이 완전히 매끄럽게 이어지게 함.
+            if (layer.x <= -layer.drawWidth) layer.x += layer.drawWidth;
         });
 
         // 천체 크기 계산 최적화
@@ -192,9 +198,13 @@ class Background {
     // [핵심 수정] 어둠 필터 계산을 이 함수 하나로 통합.
     // background.js 내부, main.js, gameover.js가 전부 이 함수만 호출하도록 해서
     // "필터 계산이 두 곳에 따로 있어서 한쪽만 적용되는" 문제(게임오버 필터 버그)의 재발을 원천 차단.
-    getFilterString() {
+    // [수정] intensityMultiplier를 인자로 받도록 확장. 배경 레이어는 기존과 동일하게 1.5(기본값)를
+    // 쓰고, 공룡/장애물은 달만 원본 색을 유지하는 것과 비슷하게 밤에도 시야가 덜 어두워야 해서
+    // main.js/gameover.js에서 더 약한 값(1.0)으로 호출한다. 계산 공식 자체는 한 곳(이 함수)에만
+    // 있으므로 "필터 계산이 여러 곳에 흩어지는" 문제는 여전히 생기지 않는다.
+    getFilterString(intensityMultiplier = 1.5) {
         if (this.darkness <= 0.01) return 'none';
-        const brightness = Math.max(0.3, 1 - (this.darkness * 1.5));
+        const brightness = Math.max(0.3, 1 - (this.darkness * intensityMultiplier));
         return `brightness(${brightness})`;
     }
 
@@ -208,7 +218,11 @@ class Background {
         this.layers.forEach(l => {
             if (l.drawWidth === 0) return;
             this.ctx.drawImage(l.img, l.x, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
-            this.ctx.drawImage(l.img, l.x + l.drawWidth, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
+            // [수정] 두 번째 타일을 1px 앞당겨서 살짝 겹치게 그림. 같은 이미지를 겹쳐 그리는
+            // 것이라 육안으로는 차이가 없지만, x가 소수점 좌표일 때 캔버스가 두 drawImage
+            // 호출을 각각 다른 정수 픽셀로 반올림하면서 생길 수 있는 미세한 서브픽셀 틈을
+            // 안전하게 방지한다.
+            this.ctx.drawImage(l.img, l.x + l.drawWidth - 1, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
         });
         this.ctx.filter = 'none';
     }

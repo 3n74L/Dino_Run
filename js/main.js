@@ -6,10 +6,135 @@ canvas.height = 675;
 ctx.imageSmoothingEnabled = true;
 ctx.imageSmoothingQuality = 'high';
 
+// [수정] 4K 등 초고해상도 모니터에서 브라우저를 전체화면으로 켰을 때, CSS의 %/vw/vh +
+// aspect-ratio 조합만으로는 브라우저/OS 배율(디스플레이 확대)에 따라 컨테이너 크기가
+// 어긋나면서 버튼이 우측 하단으로 밀리거나 정사각형 버튼의 비율이 깨지는 문제가 보고됨.
+// -> 컨테이너 크기를 vw/vh 단위 계산에 맡기지 않고 JS에서 직접 px로 못박아서,
+// 브라우저의 단위 해석/DPI 스케일링 차이에 전혀 영향받지 않도록 함.
+function resizeGameContainer() {
+    const container = document.querySelector('.game-container');
+    if (!container) return;
+    const NATIVE_W = 1200, NATIVE_H = 675; // 캔버스 네이티브 해상도(16:9)와 동일
+    const scale = Math.min(window.innerWidth / NATIVE_W, window.innerHeight / NATIVE_H, 1);
+    container.style.width = `${NATIVE_W * scale}px`;
+    container.style.height = `${NATIVE_H * scale}px`;
+}
+
+// [수정] 제목/닉네임칸/플레이버튼이 공유하는 배경 이미지의 위치/크기를 실제 렌더링된 좌표로
+// 맞춘다. "3개 중 제일 왼쪽 ~ 제일 오른쪽에 정확히 맞추기"는 텍스트 렌더링 폭이 폰트/브라우저
+// 마다 달라서 정적인 CSS 값으로는 정확히 계산할 수 없다 -> getBoundingClientRect()로 실제
+// 좌표를 잰다.
+// 처음엔 background-attachment:fixed(뷰포트 기준 고정)로 구현했는데, background-clip:text와
+// 같이 쓰면 브라우저에 따라 렌더링이 깨지는 문제가 있었다. 그래서 각 요소마다 "가상의 하나의
+// 큰 그림"에서 자기 위치에 해당하는 부분만 보이도록 background-position을 요소별로 다르게
+// (음수 오프셋으로) 계산해서 인라인 스타일로 직접 넣는 방식으로 바꿨다.
+// [버그 수정] "이미지의 y좌표는 위에서부터 2/3 지점"을 뷰포트 높이 기준(window.innerHeight*2/3)
+// 으로 잘못 이해해서, 화면이 세로로 길 때 이미지 전체가 UI 그룹 밖으로 밀려나 3개 요소가 전부
+// (제목 포함) 이미지의 범위를 벗어나 아무것도 안 보이는 문제가 있었다. 실제 의도는 "닉네임+
+// 플레이버튼의 화면상 위치가, 이미지 자기 자신의 세로 길이 기준 2/3 지점과 겹치도록"이었다.
+// -> .home-controls(닉네임+버튼을 감싸는 행)의 세로 중심 좌표를 기준점으로 삼아, 그 지점에
+// 이미지의 HOME_BG_ANCHOR_RATIO_Y 지점이 오도록 이미지의 가상 top 좌표(sharedTop)를 역산한다.
+
+// 아래 값들만 바꾸면 코드 수정 없이 이미지 위치를 조정할 수 있음.
+const HOME_BG_ANCHOR_RATIO_Y = 2 / 3; // .home-controls 중심에 맞출 이미지 세로 기준점 (0=맨위, 1=맨아래)
+const HOME_BG_OFFSET_X = 0; // 추가 미세 조정 (px, +면 이미지가 오른쪽으로 이동)
+const HOME_BG_OFFSET_Y = -30; // 추가 미세 조정 (px, +면 이미지가 아래로 이동) - 원래 위치에서 살짝 위로
+
+// [수정] 닉네임칸은 흐림 처리를 위해 배경 이미지를 .nickname-bg-wrap(입력칸을 감싸는 래퍼)의
+// ::before로 옮겼다(input은 ::before/::after를 지원하지 않아서 원래 요소에는 못 둠). 그래서
+// 위치/폭 계산에 쓰는 기준 박스는 여전히 입력칸의 실제 렌더링 영역(=래퍼가 감싸는 영역)을
+// 쓰지만, 값을 적용하는 대상(el.style)은 래퍼가 된다. 가상 요소엔 인라인 style을 직접 줄 수
+// 없어서, 제목(자기 자신이 이미지를 직접 가짐)은 기존처럼 backgroundPosition을 그대로 쓰고,
+// 래퍼/버튼(이미지가 ::before에 있음)은 CSS 커스텀 프로퍼티(--bg-pos-x/--bg-pos-y)로 값을
+// 전달해서 ::before가 var()로 읽어가게 한다.
+function updateHomeSharedBackground() {
+    const title = document.querySelector('.game-title');
+    const nicknameWrap = document.querySelector('.nickname-bg-wrap');
+    const button = document.getElementById('startBtn');
+    const controls = document.querySelector('.home-controls');
+    if (!title || !nicknameWrap || !button || !controls) return;
+
+    const els = [title, nicknameWrap, button];
+    const rects = els.map(el => el.getBoundingClientRect());
+    const sharedWidth = Math.max(1, Math.max(...rects.map(r => r.right)) - Math.min(...rects.map(r => r.left)));
+    const sharedLeft = Math.min(...rects.map(r => r.left)) + HOME_BG_OFFSET_X;
+
+    // 이미지가 1024x1024 정사각형이라, 폭을 sharedWidth로 맞추면(auto 높이) 높이도 sharedWidth와 같다.
+    const imageHeight = sharedWidth;
+
+    const controlsRect = controls.getBoundingClientRect();
+    const controlsCenterY = controlsRect.top + controlsRect.height / 2;
+    const sharedTop = controlsCenterY - imageHeight * HOME_BG_ANCHOR_RATIO_Y + HOME_BG_OFFSET_Y;
+
+    document.documentElement.style.setProperty('--home-bg-width', `${sharedWidth}px`);
+
+    const [titleRect, wrapRect, buttonRect] = rects;
+    title.style.backgroundPosition = `${sharedLeft - titleRect.left}px ${sharedTop - titleRect.top}px`;
+
+    [[nicknameWrap, wrapRect], [button, buttonRect]].forEach(([el, r]) => {
+        el.style.setProperty('--bg-pos-x', `${sharedLeft - r.left}px`);
+        el.style.setProperty('--bg-pos-y', `${sharedTop - r.top}px`);
+    });
+}
+
+// 닉네임 입력 값 저장/복원 (추후 랭킹 시스템에서 사용할 수 있도록 로컬에 보관)
+const NICKNAME_STORAGE_KEY = 'dinoRunNickname';
+const nicknameInput = document.getElementById('nicknameInput');
+
+// [신규] 닉네임 최대 8글자(maxlength) 안에서도, 넓은 한글/이모지 등으로 글자가 입력칸
+// 밖으로 넘칠 수 있다. 넘치면(scrollWidth > clientWidth) CSS가 정한 원래 크기(clamp로
+// 화면 크기에 비례해 정해짐)에서부터 한 글자도 안 잘리고 다 보일 때까지 글자 크기를
+// 조금씩 줄인다. 화면 크기가 바뀌면(원래 크기 자체가 바뀌므로) 매번 원래 크기로
+// 리셋한 뒤 다시 검사한다.
+const NICKNAME_MIN_FONT_PX = 9;
+function fitNicknameFont() {
+    if (!nicknameInput) return;
+    nicknameInput.style.fontSize = ''; // CSS clamp가 정한 "원래" 크기로 리셋 후 다시 판정
+    let size = parseFloat(getComputedStyle(nicknameInput).fontSize);
+    while (nicknameInput.scrollWidth > nicknameInput.clientWidth && size > NICKNAME_MIN_FONT_PX) {
+        size -= 1;
+        nicknameInput.style.fontSize = `${size}px`;
+    }
+}
+
+if (nicknameInput) {
+    nicknameInput.value = localStorage.getItem(NICKNAME_STORAGE_KEY) || '';
+    nicknameInput.addEventListener('input', () => {
+        localStorage.setItem(NICKNAME_STORAGE_KEY, nicknameInput.value);
+        fitNicknameFont();
+    });
+}
+
+resizeGameContainer();
+updateHomeSharedBackground();
+fitNicknameFont();
+window.addEventListener('resize', () => {
+    resizeGameContainer();
+    updateHomeSharedBackground();
+    fitNicknameFont();
+});
+document.addEventListener('fullscreenchange', () => {
+    resizeGameContainer();
+    updateHomeSharedBackground();
+    fitNicknameFont();
+});
+
+// 설정/랭킹 패널이 열리고 닫힐 때도 #homeContent의 실제 폭이 바뀌면서 제목/닉네임칸/
+// 플레이버튼 위치가 이동하므로, 그 트랜지션(width 0.35s)이 끝난 뒤 다시 계산해준다.
+const settingsPanelEl = document.getElementById('settingsPanel');
+const rankingPanelEl = document.getElementById('rankingPanel');
+function onHomePanelTransitionEnd() {
+    updateHomeSharedBackground();
+    fitNicknameFont();
+}
+if (settingsPanelEl) settingsPanelEl.addEventListener('transitionend', onHomePanelTransitionEnd);
+if (rankingPanelEl) rankingPanelEl.addEventListener('transitionend', onHomePanelTransitionEnd);
+
 window.gameConfig = {
     baseSpeed: 2,
     maxSpeed: 12,
-    groundY: 560
+    groundY: 560,
+    debugHitbox: false // [수정] 디버그용 빨간 히트박스가 항상 그려지던 문제 -> 기본값 off로 변경
 };
 
 // 게임 제어 플래그
@@ -20,6 +145,26 @@ let isInputActive = false;
 let obstacleTimeout = null;
 let jumpBufferTime = 0;
 const JUMP_BUFFER_MS = 150; // 선입력 유효 기간 (0.15초)
+
+// [신규] 에셋 로딩 상태. 플레이 버튼을 눌렀는데 아직 로딩이 안 끝났으면 로딩 화면을 보여주고,
+// 로딩이 끝나는 즉시(추가 클릭 없이) 자동으로 게임을 시작한다.
+let assetsReady = false;
+let pendingStart = false;
+
+// 점수(거리) 시스템: 이동 거리를 M(미터) 단위로 환산해서 표시.
+// 10px 이동 = 1M (체감상 자연스러운 속도로 튜닝한 값)
+const BEST_SCORE_STORAGE_KEY = 'dinoRunBestScore';
+const METERS_PER_PIXEL = 0.1;
+let currentScore = 0;
+let bestScore = Number(localStorage.getItem(BEST_SCORE_STORAGE_KEY)) || 0;
+
+function updateScoreUI() {
+    const currentEl = document.getElementById('currentScoreText');
+    const bestEl = document.getElementById('bestScoreText');
+    if (currentEl) currentEl.innerText = `${Math.floor(currentScore)}M`;
+    if (bestEl) bestEl.innerText = `BEST ${Math.floor(bestScore)}M`;
+}
+updateScoreUI(); // 최고 기록 초기 표시
 
 // 공통 점프 실행 함수
 function handleJump() {
@@ -85,6 +230,8 @@ function restartGame() {
     // 4. 인게임 핵심 데이터 초기화
     window.gameConfig.baseSpeed = 2; // 초기 속도로 리셋
     obstacles = []; // 기존 장애물 전부 제거
+    currentScore = 0;
+    updateScoreUI();
 
     // 5. 공룡 인스턴스를 새롭게 생성하여 잔존 물리 데이터 완벽 초기화
     if (dinoParts) {
@@ -113,6 +260,8 @@ function goHome() {
     isLoopRunning = false; // 홈으로 갈 때 루프 작동 플래그 OFF
     obstacles = [];
     window.gameConfig.baseSpeed = 2;
+    currentScore = 0;
+    updateScoreUI();
 
     document.getElementById('gameOverOverlay').classList.remove('show');
     document.getElementById('gameOverOverlay').classList.add('hidden');
@@ -121,12 +270,109 @@ function goHome() {
     // 2. 레이어 전환 (게임 스크린 숨기고 홈 스크린 표시)
     document.getElementById('gameScreen').classList.add('hidden');
     document.getElementById('homeScreen').classList.remove('hidden');
+
+    // [신규] 방금 새 기록이 등록됐을 수 있으니 홈으로 돌아올 때 랭킹 목록을 다시 불러온다.
+    if (typeof refreshLeaderboardUI === 'function') refreshLeaderboardUI();
 }
 
+// [수정] 소리 버튼을 이모지 텍스트 대신 Sound_Off.png(항상 표시) + Sound_On.png(소리 켜졌을
+// 때만 표시) 아이콘 조합으로 변경. Off 이미지 오른쪽에 On 이미지를 나란히 둬서 "소리가
+// 들리는 중"을 표현하고, 끄면 On 이미지만 숨긴다. 일시정지 메뉴(#soundBtn)와 홈 설정
+// (#settingsSoundBtn) 둘 다 같은 클래스(.sound-on-icon)를 쓰므로 한 번에 동기화된다.
 function toggleSound() {
     isAudioOn = !isAudioOn;
-    const soundBtn = document.getElementById('soundBtn');
-    soundBtn.innerText = isAudioOn ? "🔊" : "🔇";
+    document.querySelectorAll('.sound-on-icon').forEach(img => {
+        img.style.display = isAudioOn ? '' : 'none';
+    });
+    // [신규] 설정 패널의 소리 버튼도 켜짐 상태(기본값 on)를 노란색으로 표시.
+    // .setting-row button.on 규칙만 노란 배경을 적용하므로, .setting-row 밖에 있는
+    // 일시정지 메뉴의 원형 소리 버튼(#soundBtn)에는 이 클래스가 붙어도 시각적 영향이 없다.
+    document.querySelectorAll('.sound-btn').forEach(btn => {
+        btn.classList.toggle('on', isAudioOn);
+    });
+}
+
+// 히트박스 표시 토글 (설정 화면 전용). 개발용 디버그 시각화를 플레이어가 직접 켤 수 있게 하되,
+// 랭킹 시스템 도입 시 이 값이 켜져 있으면 등록 제외 처리할 수 있도록 gameConfig.debugHitbox로 노출.
+function toggleHitbox() {
+    window.gameConfig.debugHitbox = !window.gameConfig.debugHitbox;
+    const btn = document.getElementById('settingsHitboxBtn');
+    if (btn) {
+        btn.innerText = window.gameConfig.debugHitbox ? "ON" : "OFF";
+        // [신규] 켜져 있음을 노란색으로 표시
+        btn.classList.toggle('on', window.gameConfig.debugHitbox);
+    }
+}
+
+// 반전 모드 토글: 켜면 게임 캔버스 전체에 CSS 색상 반전 필터를 적용한다.
+// (background.js의 밤/낮 밝기 필터는 캔버스 내부 그리기에만 적용되는 것과 별개로,
+// 이건 최종 렌더링된 화면 전체에 CSS filter로 적용되는 것이라 서로 간섭하지 않는다.)
+let isInvertOn = false;
+function toggleInvert() {
+    isInvertOn = !isInvertOn;
+    document.getElementById('gameCanvas').classList.toggle('invert-mode', isInvertOn);
+    const btn = document.getElementById('settingsInvertBtn');
+    if (btn) {
+        btn.innerText = isInvertOn ? "ON" : "OFF";
+        btn.classList.toggle('on', isInvertOn); // [신규] 켜져 있음을 노란색으로 표시
+    }
+}
+
+// 설정 패널 열기/닫기 (홈 화면 전용)
+// [수정] 반투명 오버레이로 위를 덮던 방식 -> #homeScreen에 'settings-open' 클래스를 토글해서
+// CSS(width 0 -> 30cqw)로 좌측 드로어가 슬라이드되어 나오고, homeContent가 그만큼 오른쪽으로
+// 밀려나도록 변경 (뒤 내용이 비쳐서 안 보이던 문제 해결). 톱니바퀴 버튼의 회전 애니메이션도
+// 같은 'settings-open' 클래스를 기준으로 CSS에서 처리한다.
+function openSettings() {
+    // 소리 아이콘은 toggleSound()가 항상 두 버튼(#soundBtn, #settingsSoundBtn)을 동시에
+    // 갱신하므로 여기서 따로 동기화할 필요가 없다.
+    const hitboxBtn = document.getElementById('settingsHitboxBtn');
+    if (hitboxBtn) {
+        hitboxBtn.innerText = window.gameConfig.debugHitbox ? "ON" : "OFF";
+        hitboxBtn.classList.toggle('on', window.gameConfig.debugHitbox);
+    }
+    const invertBtn = document.getElementById('settingsInvertBtn');
+    if (invertBtn) {
+        invertBtn.innerText = isInvertOn ? "ON" : "OFF";
+        invertBtn.classList.toggle('on', isInvertOn);
+    }
+    document.getElementById('homeScreen').classList.add('settings-open');
+}
+
+function closeSettings() {
+    document.getElementById('homeScreen').classList.remove('settings-open');
+}
+
+// [수정] 톱니바퀴 버튼을 다시 눌러도 닫히도록 토글 함수로 변경 (기존엔 열기만 됐음)
+function toggleSettings() {
+    const homeScreen = document.getElementById('homeScreen');
+    if (homeScreen.classList.contains('settings-open')) {
+        closeSettings();
+    } else {
+        openSettings();
+    }
+}
+
+// 랭킹 패널 열기/닫기 (홈 화면 전용, 설정 패널과 완전히 대칭 구조).
+// 'ranking-open' 클래스만 토글하면 CSS(width 0 -> 30cqw, 우측 드로어)가 나머지를 처리하고,
+// homeContent가 flex:1이라 이 패널이 넓어지는 만큼 자동으로, 정확히 그만큼 왼쪽으로 밀려난다.
+function openRanking() {
+    document.getElementById('homeScreen').classList.add('ranking-open');
+    // 홈 화면 상단 미리보기(TOP 5)와 달리, 패널 안 전체 목록+내 순위는 열 때만 불러온다.
+    if (typeof refreshFullRankingUI === 'function') refreshFullRankingUI();
+}
+
+function closeRanking() {
+    document.getElementById('homeScreen').classList.remove('ranking-open');
+}
+
+function toggleRanking() {
+    const homeScreen = document.getElementById('homeScreen');
+    if (homeScreen.classList.contains('ranking-open')) {
+        closeRanking();
+    } else {
+        openRanking();
+    }
 }
 
 // 3. 캐싱 시스템
@@ -180,14 +426,25 @@ function spawnObstacle() {
 
     const speed = window.gameConfig.baseSpeed;
 
-    // 패턴 결정: 속도 6 이상(3개), 속도 4 이상(2개), 그 외(1개)
+    // [수정] 공중(프테라노돈):지상 장애물 등장 비율을 4:6으로 고정.
+    // 예전에는 공중 장애물이 "단독 웨이브일 때만 30% 확률"로 나와서 실제 비율이 훨씬
+    // 낮았고(팩이 나오면 무조건 지상), 그냥 계속 점프만 해도 되는 쉬운 난이도였다.
+    // 이제 웨이브 타입(공중/지상)을 먼저 4:6으로 정하고, 지상일 때만 아래에서
+    // 속도 기반 팩(2~3개 묶음) 여부를 추가로 결정한다.
+    const AIR_OBSTACLE_RATIO = 0.4;
+    const isAirborne = Math.random() < AIR_OBSTACLE_RATIO;
+
+    // 패턴 결정(지상일 때만): 속도 6 이상(3개), 속도 4 이상(2개), 그 외(1개)
+    // 팩은 장애물끼리 붙어 있어 점프 한 번으로 전부 넘으므로 공정성에는 영향 없음.
     let count = 1;
-    if (speed >= 6 && Math.random() < 0.4) count = 3;
-    else if (speed >= 4 && Math.random() < 0.5) count = 2;
+    if (!isAirborne) {
+        if (speed >= 6 && Math.random() < 0.4) count = 3;
+        else if (speed >= 4 && Math.random() < 0.5) count = 2;
+    }
 
-    const isAirborne = count === 1 ? Math.random() < 0.3 : false;
-
-    if (count > 1) {
+    if (isAirborne) {
+        obstacles.push(new Obstacle(ctx, 1400, true));
+    } else if (count > 1) {
         const types = ['realmetal', 'stone', 'wood'];
         const sharedType = types[Math.floor(Math.random() * types.length)];
 
@@ -201,13 +458,13 @@ function spawnObstacle() {
             lastX += obsWidth;
         }
     } else {
-        obstacles.push(new Obstacle(ctx, 1400, isAirborne));
+        obstacles.push(new Obstacle(ctx, 1400, false));
     }
 
     // 장애물 개수에 따른 안전거리 보정
     const packBonus = (count - 1) * 250;
     const safetyDistance = Math.max(700, 1100 - (speed * 40)) + packBonus;
-    let nextSpawnTime = Math.max(900, safetyDistance / speed);
+    const nextSpawnTime = Math.max(900, safetyDistance / speed);
 
     obstacleTimeout = setTimeout(spawnObstacle, nextSpawnTime + Math.random() * 300);
 }
@@ -250,7 +507,15 @@ const checkLoad = setInterval(() => {
             console.error("[Loading] 일부 에셋이 시간 내에 로드되지 않았습니다. 콘솔의 개별 경고를 확인하세요. 게임은 계속 진행됩니다.");
         }
         dino = new Dino(ctx, dinoParts);
+        assetsReady = true;
         console.log("로딩 완료: 홈 화면 대기");
+
+        // [신규] 로딩 중에 플레이 버튼을 눌러 로딩 화면이 떠 있었다면, 추가 클릭 없이
+        // 지금 바로 게임을 시작한다.
+        if (pendingStart) {
+            pendingStart = false;
+            reallyStartGame();
+        }
     }
 }, 100);
 
@@ -278,6 +543,10 @@ function gameLoop() {
         window.gameConfig.baseSpeed += 0.0004;
     }
 
+    // 이동 거리만큼 현재 기록 누적 (죽으면 이 블록에 도달하지 않으므로 자동으로 멈춤)
+    currentScore += window.gameConfig.baseSpeed * METERS_PER_PIXEL;
+    updateScoreUI();
+
     if (dino) dino.update();
     background.update();
 
@@ -295,11 +564,17 @@ function gameLoop() {
     background.draw();
 
     // C. 장애물 및 공룡 그리기 (필터 적용)
-    // [수정] 중복 계산 제거: background.getFilterString()이 background.js의 draw()에서 쓰는 것과
-    // 완전히 동일한 공식을 사용하므로, 게임오버 연출과도 항상 같은 결과를 보장함.
-    ctx.filter = background.getFilterString();
+    // [수정] 배경(레이어)은 기본 강도(1.5)로 어두워지지만, 장애물/공룡은 달처럼 시야 확보를
+    // 위해 더 약한 강도(1.0)로만 어두워지도록 함. 계산 공식은 여전히 getFilterString() 한
+    // 곳에서만 관리되므로 게임오버 연출(gameover.js)과도 항상 같은 결과를 보장함.
+    ctx.filter = background.getFilterString(1.0);
 
     obstacles = obstacles.filter(obs => {
+        // [수정] 한 프레임에서 이미 충돌/게임오버가 확정되면 나머지 장애물은 더 이상
+        // 갱신/충돌판정하지 않음 (죽는 순간 이후에도 장애물이 계속 움직이거나
+        // gameOver()가 여러 번 중복 호출되던 문제 방지)
+        if (isGameOver) return true;
+
         obs.update();
         obs.draw();
         if (dino && checkCollision(dino, obs)) {
@@ -317,9 +592,30 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
+// [수정] 플레이 버튼이 눌렸을 때: 설정을 열어둔 채로 플레이했다면 다음에 홈으로 돌아왔을 때도
+// 열려있던 문제를 막기 위해 항상 닫고 시작한다. 에셋 로딩이 아직 안 끝났으면(assetsReady가
+// false) 바로 게임을 시작하지 않고 로딩 화면을 띄운 뒤, checkLoad가 로딩 완료를 감지하는
+// 즉시(추가 클릭 없이) reallyStartGame()을 대신 호출해준다.
 function startGameFromHome() {
+    closeSettings();
+    closeRanking();
+
+    if (!assetsReady) {
+        pendingStart = true;
+        document.getElementById('homeScreen').classList.add('hidden');
+        document.getElementById('loadingScreen').classList.remove('hidden');
+        return;
+    }
+
+    reallyStartGame();
+}
+
+// 실제 게임 시작 로직 (기존 startGameFromHome의 본문). 로딩 화면에서 자동으로 넘어올 때도
+// 호출되므로, 로딩 화면이 떠 있었을 경우까지 대비해 loadingScreen도 함께 숨긴다.
+function reallyStartGame() {
     // 1. 레이어 전환
     document.getElementById('homeScreen').classList.add('hidden');
+    document.getElementById('loadingScreen').classList.add('hidden');
     document.getElementById('gameScreen').classList.remove('hidden');
 
     // 2. 인게임 데이터 상태 완전 초기화
@@ -328,6 +624,8 @@ function startGameFromHome() {
     isInputActive = false;
     window.gameConfig.baseSpeed = 2;
     obstacles = [];
+    currentScore = 0;
+    updateScoreUI();
     if (background && typeof background.reset === 'function') {
         background.reset();
     }
@@ -337,6 +635,10 @@ function startGameFromHome() {
     if (dinoParts) {
         dino = new Dino(ctx, dinoParts);
     }
+
+    // [신규] 랭킹 시스템: 서버 기준 시작 시각을 기록해 토큰을 받아둔다(js/leaderboard.js).
+    // Supabase가 아직 설정 안 됐으면 이 함수는 아무것도 하지 않고 조용히 반환된다.
+    if (typeof startRunSession === 'function') startRunSession();
 
     // 3. 타이머 청소 후 장애물 생성 및 메인 루프 가동
     if (obstacleTimeout) clearTimeout(obstacleTimeout);

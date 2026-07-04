@@ -1,3 +1,26 @@
+/* [수정] 제목/닉네임칸/플레이버튼 공유 배경 이미지의 폭. main.js의
+   updateHomeSharedBackground()가 실제 렌더링된 3개 요소의 좌측 끝~우측 끝을 측정해서
+   매번 정확한 값으로 덮어쓴다. 각 요소의 background-position은 (셋이 서로 달라야 하나의
+   그림이 이어져 보이므로) JS가 인라인 스타일로 개별 설정한다. 아래는 JS가 아직 실행되기
+   전 첫 페인트에서만 잠깐 쓰이는 폴백. */
+:root {
+    --home-bg-width: 400px;
+}
+
+/* [신규] 이미지든 글자(타이틀 등)든 마우스로 드래그/선택되지 않도록 전역 차단.
+   실제 드래그 시작 자체는 input.js의 dragstart preventDefault가 막고,
+   여기서는 텍스트가 파랗게 선택되는 것까지 같이 막는다. */
+* {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* 단, 닉네임 입력칸은 일반적인 텍스트 입력/선택이 가능해야 하므로 예외 처리 */
+input {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
 body {
     margin: 0;
     background: #0e302d; /* 사이트 배경 */
@@ -15,17 +38,59 @@ canvas {
     display: block;
 }
 
+img {
+    -webkit-user-drag: none;
+    user-drag: none;
+    -webkit-touch-callout: none; /* iOS에서 이미지 길게 눌렀을 때 뜨는 메뉴도 같이 방지 */
+}
+
 /* 캔버스와 오버레이를 감싸는 부모 컨테이너 */
-/* [수정] 기존에는 width/height가 1200px/675px로 고정되어 있어서
-   화면이 1200px보다 좁은 모바일/작은 창에서는 컨테이너가 줄어들지 않고
-   좌우가 잘리거나 오버레이 버튼 위치가 화면 밖으로 밀려나는 문제가 있었음.
-   -> 뷰포트에 맞춰 줄어들 수 있도록 상대 단위 + aspect-ratio로 변경 */
+/* [수정] width/height는 이제 main.js의 resizeGameContainer()가 window.innerWidth/innerHeight를
+   기준으로 px 단위로 직접 계산해서 인라인 스타일로 못박는다(전체화면/4K/DPI 스케일링 등
+   환경에 따라 vw/vh/aspect-ratio 조합의 계산 결과가 브라우저마다 어긋나는 문제가 있었음).
+   아래 값은 JS가 아직 실행되기 전 첫 페인트에서만 잠깐 쓰이는 폴백이다. */
+/* [수정] 내부 요소들의 글자 크기(vw)가 뷰포트 기준이라 전체화면(특히 4K)에서 컨테이너 자체는
+   1200px로 캡되어 있는데 글자만 화면 크기를 따라 계속 커져서 버튼 비율이 깨지고 점수 글자가
+   과도하게 커지는 문제가 있었음. container-type을 선언해서 자식 요소들이 뷰포트(vw) 대신
+   이 컨테이너의 실제 너비(cqw)를 기준으로 크기를 잡을 수 있게 함. */
 .game-container {
     position: relative;
     width: 100%;
     max-width: 1200px;
     aspect-ratio: 16 / 9;
     margin: 0 auto;
+    container-type: inline-size;
+}
+
+/* [신규] 홈/로딩 화면 전용 레이어. 실제 게임 캔버스(.game-container)와 달리 16:9 비율에
+   묶이지 않고, 화면(뷰포트) 전체를 그대로 채운다. 폰 세로 화면에서도 홈 화면이 얇은 가로
+   띠 안에 갇히지 않고 화면 세로 길이를 온전히 활용할 수 있게 하기 위함. position:fixed라서
+   body의 flex 중앙 정렬(주로 .game-container용) 영향을 받지 않고 항상 뷰포트 기준으로 꽉 찬다.
+   max-width는 너무 넓은 데스크톱 화면에서 글자/버튼이 과도하게 커지지 않도록 하는
+   기존 .game-container와 동일한 상한이고, left/right:0 + margin:auto로 그 안에서 중앙 정렬된다. */
+.home-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    container-type: inline-size;
+}
+
+/* [신규] .home-container/.game-container 둘 다 화면 전체(또는 중앙)를 차지하는 박스라서,
+   한쪽이 비어있을 때(내부의 모든 .ui-layer가 hidden일 때) 클릭이 그 빈 박스에 막혀 실제로
+   보이는 반대쪽 화면의 버튼을 못 누르게 되는 문제가 생길 수 있다. 박스 자체는 클릭을
+   통과시키고(pointer-events:none), 실제 내용이 있는 .ui-layer(hidden이 아닐 때)만 클릭을
+   받도록 함. */
+.home-container,
+.game-container {
+    pointer-events: none;
+}
+
+.ui-layer {
+    pointer-events: auto;
 }
 
 /* 일시정지 버튼 (캔버스 내부 기준 좌측 상단) */
@@ -39,10 +104,91 @@ canvas {
     border-radius: 50%;
     border: none;
     background-color: rgba(255, 255, 255, 0.8);
-    font-size: 1.5vw; /* 글자 크기도 화면 비례 */
+    font-size: 1.5cqw; /* [수정] vw -> cqw: 뷰포트가 아니라 game-container 실제 너비 기준 */
     font-weight: bold;
     cursor: pointer;
     z-index: 10;
+}
+
+/* [신규] 이모지 대신 이미지 아이콘을 쓰는 버튼들의 공통 아이콘 스타일.
+   버튼 자체 크기(원형 %, cqw 등)는 각 버튼 규칙이 그대로 담당하고, 이 규칙은
+   그 안의 <img>를 버튼 크기에 비례해서 가운데 정렬하는 역할만 한다. */
+/* [수정] 홈/재시작 아이콘이 조금 작다는 피드백으로 55% -> 65% -> 80%로 확대 (소리 버튼은
+   .sound-btn .btn-icon이 따로 있어서 이 값의 영향을 받지 않음) */
+.btn-icon {
+    width: 80%;
+    height: 80%;
+    object-fit: contain;
+    pointer-events: none; /* 클릭은 항상 버튼(부모)이 받도록 */
+}
+
+/* [수정] 설정 버튼 아이콘이 너무 작아서 회전 애니메이션이 잘 안 보인다는 피드백으로 확대.
+   80% -> 88% -> 96%까지는 width/height 비율로 키웠는데, 100%를 넘기려고 115%로 올렸더니
+   버튼(.corner-btn)이 aspect-ratio:1/1 + height:auto인 상태에서 자식 이미지의 height가
+   퍼센트로 100%를 넘어가면서 버튼 자체의 높이 계산이 같이 영향을 받아 동그라미가 위아래로
+   늘어난 타원이 되는 문제가 있었다. width/height 퍼센트 대신 레이아웃에 전혀 관여하지 않는
+   transform:scale()로 바꿔서, 아이콘은 항상 버튼과 같은 100% 크기로 배치된 뒤 순수하게
+   시각적으로만 1.15배 확대되도록(가로세로 항상 동일 배율이라 절대 찌그러지지 않음) 수정. */
+#homeSettingsBtn .btn-icon {
+    width: 100%;
+    height: 100%;
+    transform: scale(1.15);
+}
+
+/* 소리 버튼: Off 아이콘(항상 표시) 오른쪽에 On 아이콘(소리 켜졌을 때만 표시)을 나란히 배치 */
+.sound-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+/* [수정] 일시정지 메뉴의 원형 소리 버튼(인게임) 아이콘: 55% -> 65%로 키웠다가, 원형 버튼
+   안에 이미지 2개(off+on)가 나란히 들어가다 보니 너무 커 보인다는 피드백으로 55%로 축소.
+   설정 패널 안의 소리 버튼은 아래 더 구체적인 규칙이 이를 덮어써서 영향받지 않음. */
+.sound-btn .btn-icon {
+    width: auto;
+    height: 55%;
+}
+
+/* [수정] 설정 패널 안의 소리 버튼(#settingsSoundBtn)은 원형 아이콘 버튼(일시정지 메뉴의
+   #soundBtn)과 달리 옆의 ON/OFF 텍스트 버튼들과 같은 줄에 있어서, 55%(버튼 높이 기준)로는
+   너무 크게 보였다. 다른 설정 버튼들과 높이가 비슷해지도록 고정 px로 축소. */
+.settings-panel-content .sound-btn .btn-icon {
+    height: 1.67cqw;
+}
+
+/* 점수판 (캔버스 내부 기준 우측 상단) */
+#scoreBoard {
+    position: absolute;
+    top: 3%;
+    right: 2%;
+    text-align: right;
+    font-family: sans-serif;
+    color: #ffffff;
+    text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.6);
+    z-index: 10;
+    user-select: none;
+}
+
+#bestScoreText {
+    font-size: 1.1cqw; /* [수정] vw -> cqw */
+    opacity: 0.8;
+    font-weight: bold;
+}
+
+#currentScoreText {
+    font-size: 2.2cqw; /* [수정] vw -> cqw */
+    font-weight: bold;
+}
+
+/* 게임오버 화면에 표시되는 최종 기록 */
+#finalScoreText {
+    color: #ffffff;
+    font-family: sans-serif;
+    font-size: 2cqw; /* [수정] vw -> cqw */
+    font-weight: bold;
+    margin: -20px 0 0 0;
 }
 
 /* 일시정지 오버레이 전체 화면 - 캔버스 영역만 정확히 덮음 */
@@ -76,13 +222,18 @@ canvas {
     border-radius: 50%;
     border: none;
     background-color: #fff;
-    font-size: 3vw;
+    font-size: 3cqw; /* [수정] vw -> cqw */
     cursor: pointer;
 }
 
 /* 하단 서브 버튼 레이아웃 */
+/* [수정] align-items를 지정 안 하면 기본값(stretch)이 적용되어, 이 줄에서 제일 큰 버튼
+   (예: 재시작 버튼만 20% 키운 경우)의 높이에 맞춰 다른 버튼(홈/소리)까지 세로로 늘어나
+   버튼이 정사각형이 아니라 찌그러진 모양이 되는 문제가 있었다. center로 고정해서 각
+   버튼이 자기 aspect-ratio(정사각형)를 항상 그대로 유지하도록 함. */
 .sub-buttons {
     display: flex;
+    align-items: center;
     gap: 20px;
     justify-content: center;
     width: 100%;
@@ -92,11 +243,15 @@ canvas {
     width: 5%; /* 1200px 기준 60px 비례 */
     height: auto;
     aspect-ratio: 1 / 1;
+    flex-shrink: 0; /* [수정] 폭이 좁아져도 다른 버튼과 뭉개지듯 줄어들지 않고 항상 정해진 정사각형 크기 유지 */
     border-radius: 50%;
     border: none;
     background-color: #fff;
-    font-size: 1.8vw;
+    font-size: 1.8cqw; /* [수정] vw -> cqw */
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .hidden {
@@ -127,24 +282,130 @@ canvas {
 /* 게임 오버 텍스트 스타일 */
 #gameOverText {
     color: #ff3b30;
-    font-size: 6vw; /* 화면 비례 큰 글자 */
+    font-size: 6cqw; /* [수정] vw -> cqw: 화면이 아니라 game-container 비례 큰 글자 */
     font-weight: bold;
     margin: 0 0 20px 0;
     text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
     user-select: none;
 }
 
-/* 홈 화면 레이어 (기존과 동일하게 중앙 정렬 유지) */
+/* 홈 화면 레이어 */
+/* [수정] 설정 패널이 좌측에서 슬라이드되어 나오면서 #homeContent를 오른쪽으로 밀어내야 하므로
+   column -> row로 변경. 실제 중앙 정렬은 #homeContent 내부에서 담당한다. */
 #homeScreen.ui-layer {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    flex-direction: row;
+    align-items: stretch;
     width: 100%;
     height: 100%;
     position: absolute;
     top: 0;
     left: 0;
+    overflow: hidden; /* 패널이 슬라이드되는 동안 밖으로 튀어나오지 않게 */
+}
+
+/* 설정 패널: width를 0 -> 열림 너비로 애니메이션해서 드로어처럼 열리게 함.
+   flex 자식이라 이 너비가 늘어나는 만큼 형제 요소(#homeContent)가 자동으로,
+   정확히 그만큼 밀려남(수동 transform 계산 불필요). */
+#settingsPanel {
+    width: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+    background-color: #0a2422; /* 불투명 배경: 뒤 내용이 비치지 않도록 */
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.4);
+    transition: width 0.35s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#homeScreen.settings-open #settingsPanel {
+    width: 30cqw;
+}
+
+/* [신규] 설정 열림/닫힘에 맞춰 톱니바퀴 버튼 회전: 열릴 때 0deg->180deg(시계방향),
+   닫힐 때는 같은 트랜지션을 역재생하므로 자동으로 180deg->0deg(반시계방향)이 된다. */
+#homeScreen.settings-open #homeSettingsBtn {
+    transform: rotate(180deg);
+}
+
+/* cqw 기준 고정폭: 부모(#settingsPanel)의 width가 0->30cqw로 애니메이션되는 동안
+   이 내부 콘텐츠는 이미 30cqw 크기를 유지하고 있어서 찌그러지지 않고 "드러나는" 느낌을 준다. */
+.settings-panel-content {
+    width: 30cqw;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+#homeContent {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* [수정] 제목 글자 / 닉네임 입력칸 / 플레이 버튼이 "하나의 이어진 그림"을 각자 다른 위치에서
+   창문처럼 보여주는 효과. 처음엔 background-attachment:fixed(뷰포트 기준 고정)로
+   구현했는데, background-clip:text와 fixed를 같이 쓰면 브라우저에 따라 제대로 렌더링되지
+   않는 문제가 있었다(제목 글자가 아예 안 보이고 이미지도 이상하게 나옴). 대신 각 요소마다
+   자기 자신의 박스 기준으로 정확한 background-position을 계산해서(음수 오프셋으로 "그림의
+   해당 부분"을 각자 보여줌) 넣는 방식으로 변경 - main.js의 updateHomeSharedBackground()가
+   셋의 실제 화면 좌표를 재서 요소별로 다른 background-position을 인라인 스타일로 직접
+   설정한다. background-size(폭)만 셋이 동일한 값(--home-bg-width)을 공유하면 되고, 이건
+   여기서 CSS로 미리 지정해둔다. */
+/* [수정] 이미지를 살짝 흐리게 처리. 제목은 배경 이미지가 곧 글자 모양이라(background-clip:text)
+   직접 filter:blur를 걸어도 별도의 선명한 글자가 겹쳐있지 않아 문제없다. 하지만 닉네임칸/
+   플레이버튼은 실제 텍스트(입력값, "플레이 ▶")가 별도로 있어서 요소 전체에 filter를 걸면
+   그 글자까지 같이 흐려진다. 그래서 이 둘은 이미지를 별도의 ::before 레이어로 분리해서 그
+   레이어만 블러 처리하고, 진짜 텍스트는 그 위에 선명하게 남도록 한다. */
+/* [수정] 제목은 background-clip:text라 "글자 모양 = 이미지가 그려지는 영역"이다. 이 요소
+   자체에 filter:blur를 걸면 이미지 내용뿐 아니라 글자 윤곽(가장자리)까지 같이 흐려져서
+   글자 자체가 흐릿해 보이는 문제가 있었다. 그래서 제목에는 blur를 걸지 않고 원래 상태(선명한
+   글자 모양 + 그 안에 선명한 이미지)로 되돌림. */
+.game-title {
+    background-image: url('assets/sprites/Background_Sprite_1024_Default.png');
+    background-repeat: no-repeat;
+    background-size: var(--home-bg-width) auto;
+}
+
+.nickname-bg-wrap::before,
+#startBtn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url('assets/sprites/Background_Sprite_1024_Default.png');
+    background-repeat: no-repeat;
+    background-size: var(--home-bg-width) auto;
+    background-position: var(--bg-pos-x, 0) var(--bg-pos-y, 0);
+    filter: blur(2px);
+    z-index: -1; /* 부모(button/wrap)의 배경보다는 위, 실제 텍스트/입력칸보다는 아래에 오도록 */
+    border-radius: inherit;
+}
+
+
+/* [신규] 화면 정중앙에 배치되는 #homeContent와 별개로, 항상 화면 맨 아래에 고정되는
+   면책 조항. #homeScreen의 직계 자식이지만 position:absolute라 flex 레이아웃(3단 구성)에는
+   영향을 주지 않는다. */
+#disclaimerText {
+    position: absolute;
+    bottom: 1.5%;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0 24px;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: clamp(9px, 0.9cqw, 11px);
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: sans-serif;
+    z-index: 5;
 }
 
 /* 인게임 레이어 (크기 변화나 왜곡을 막기 위해 꽉 채우는 절대 위치로 설정) */
@@ -157,19 +418,57 @@ canvas {
     left: 0;
 }
 
+/* [신규] 로딩 화면: 플레이를 눌렀는데 에셋이 아직 준비 안 됐을 때만 표시.
+   게임 캔버스와 같은 어두운 배경색 위에 Loading.png를 가운데 두고 계속 회전시켜서
+   "로딩 중"임을 알려준다. 로딩이 끝나면 자동으로 게임 화면으로 전환된다. */
+#loadingScreen.ui-layer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: #1d1d1d; /* 캔버스 배경색과 동일 */
+}
+
+#loadingIcon {
+    width: 15%;
+    height: auto;
+    animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 /* 홈 화면 타이틀 및 버튼 스타일 정리 */
+/* [수정] 글자 색을 흰색으로 칠하는 대신, 위쪽에서 지정한 공유 배경 이미지가 글자 모양
+   그대로만 보이도록 background-clip:text + color:transparent로 변경. */
+/* [수정] 폰 화면처럼 .game-container가 좁게 스케일되는 환경에서 고정 px 폰트/여백이
+   컨테이너 대비 상대적으로 지나치게 커 보이는 문제 수정. 다른 UI처럼 cqw(컨테이너 기준
+   상대 단위) 전환 + clamp()로 최소/최대 크기를 잡아, 아주 작은/큰 화면에서도 과도하게
+   작아지거나 커지지 않도록 함. clamp()의 최댓값은 1200px 기준 원래 px 값과 동일. */
 .game-title {
-    font-size: 54px;
-    margin-bottom: 30px;
-    color: #ffffff; /* 사이트 배경이 어두우므로 흰색 계열로 변경 */
+    font-size: clamp(28px, 4.5cqw, 54px);
+    margin-bottom: clamp(14px, 2.5cqw, 30px);
+    color: transparent;
+    -webkit-text-fill-color: transparent; /* [신규] 일부 브라우저는 color만으론 안 먹혀서 명시적으로 추가 */
+    -webkit-background-clip: text;
+    background-clip: text;
     font-family: sans-serif;
     font-weight: bold;
     letter-spacing: 2px;
 }
 
 #startBtn {
-    padding: 15px 50px;
-    font-size: 24px;
+    position: relative;
+    overflow: hidden; /* ::before로 넣는 흐린 배경 이미지가 둥근 모서리 밖으로 안 새어나가게 */
+    padding: clamp(8px, 1.25cqw, 15px) clamp(24px, 4.17cqw, 50px);
+    font-family: sans-serif;
+    font-size: clamp(14px, 2cqw, 24px);
     font-weight: bold;
     cursor: pointer;
     border: none;
@@ -184,7 +483,282 @@ canvas {
     transform: scale(1.05);
 }
 
-/* 숨김 처리 플래그 (기존 유지) */
-.hidden {
-    display: none !important;
+/* 홈 화면 좌측 상단 설정 버튼 (일시정지 버튼과 동일한 위치/크기 규칙 재사용) */
+/* [수정] 설정 버튼 20% 더 크게: 아이콘 채우기 비율(96%)이 이미 거의 꽉 차서, 버튼 자체
+   크기(4.16% -> 5%)를 키워서 아이콘도 같이 커지게 함. */
+.corner-btn {
+    position: absolute;
+    top: 3%;
+    left: 2%;
+    width: 5%; /* 4.16% * 1.2 */
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.8);
+    font-size: 1.5cqw; /* [수정] vw -> cqw */
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 10;
+    display: flex; /* [수정] 이미지 아이콘 가운데 정렬 */
+    align-items: center;
+    justify-content: center;
+    /* [신규] 설정 패널 열고 닫을 때 톱니바퀴가 회전하도록 트랜지션 부여 */
+    transition: transform 0.35s ease;
+}
+
+/* 닉네임 입력칸 + 플레이 버튼을 한 줄에 배치 */
+.home-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* [수정] <input>은 스펙상 ::before/::after(가상 요소)를 지원하지 않아서, 배경 이미지를
+   흐리게 하려면 별도의 감싸는 래퍼(.nickname-bg-wrap)가 필요하다. 래퍼의 ::before가 흐린
+   이미지를 담당하고, 입력칸 자신은 배경을 투명하게 비워서 그 뒤의 흐린 이미지가 비치게
+   하면서, 실제로 입력되는 글자는 (필터 없이) 선명하게 유지된다. */
+.nickname-bg-wrap {
+    position: relative;
+    display: inline-flex;
+    border-radius: 30px;
+    overflow: hidden;
+}
+
+#nicknameInput {
+    position: relative;
+    z-index: 1;
+    padding: clamp(8px, 1.25cqw, 15px) clamp(10px, 1.5cqw, 18px);
+    font-family: sans-serif; /* [수정] 플레이 버튼과 동일한 글꼴로 통일 */
+    font-size: clamp(14px, 2cqw, 24px); /* [수정] 플레이 버튼과 동일한 크기로 통일 */
+    /* [수정] fitNicknameFont()가 넘치는 글자를 막으려고 font-size를 줄일 때, line-height가
+       "normal"(font-size에 비례)이면 줄 높이까지 같이 줄어들어서 입력칸 전체 높이가
+       타이핑할 때마다 미세하게 바뀌는 문제가 있었다. line-height를 font-size와 무관한
+       고정값으로 분리해서, 글자 크기가 줄어도 박스 높이(padding + line-height)는 항상
+       그대로 유지되게 함. */
+    line-height: clamp(16px, 2.3cqw, 27px);
+    font-weight: bold; /* [수정] 플레이 버튼과 동일하게 굵게 */
+    border: none;
+    border-radius: 30px;
+    outline: none;
+    width: clamp(100px, 13.33cqw, 160px);
+    background-color: transparent; /* [수정] 뒤의 .nickname-bg-wrap::before 흐린 이미지가 비치도록 */
+    color: #0e302d;
+}
+
+/* [수정] placeholder("닉네임")가 브라우저 기본 회색이라 배경(투명 + 뒤의 흐린 이미지)과
+   구분이 잘 안 되는 문제 수정. 흰 글자 + 어두운 그림자로 어떤 이미지 색상 위에서도
+   잘 보이도록(다른 UI 텍스트에 쓰는 text-shadow 기법과 동일). */
+#nicknameInput::placeholder {
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* [수정] 홈 화면 우측 상단 랭킹 미리보기(고정, 클릭하면 랭킹 패널 열림).
+   설정 버튼(.corner-btn, 좌측 상단)과 대칭되는 위치/역할. */
+#rankingPreview {
+    position: absolute;
+    top: 3%;
+    right: 2%;
+    z-index: 10;
+    color: #ffffff;
+    font-family: sans-serif;
+    text-align: center;
+    cursor: pointer;
+    transform-origin: top right;
+    /* [신규] 랭킹 패널이 열릴 때 이 미리보기(특히 큰 RankTitle 이미지)가 패널 내용을
+       가려버린다는 피드백 -> 패널이 열리는 트랜지션과 같은 속도로 작아지며 사라지게 함 */
+    transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+#homeScreen.ranking-open #rankingPreview {
+    transform: scale(0.4);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#rankTitleImg {
+    display: block;
+    width: 12cqw;
+    height: auto;
+    margin: 0 auto 6px auto;
+}
+
+#leaderboardList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 1.17cqw; /* [수정] clamp 최소값 때문에 이미지(순수 cqw)보다 덜 줄어드는 문제 -> 순수 cqw로 통일 */
+}
+
+.leaderboard-empty {
+    opacity: 0.6;
+    font-size: 1.08cqw;
+}
+
+/* [신규] 1위 강조 (홈 미리보기 + 랭킹 패널 전체 목록 둘 다 적용).
+   목록이 항상 점수 내림차순으로 새로 그려지므로 첫 번째 항목이 곧 1위 -> :first-child로 충분.
+   빈 목록일 때 나오는 안내문구(.leaderboard-empty)는 1위 취급하지 않도록 제외. */
+#leaderboardList li:first-child:not(.leaderboard-empty),
+#rankingFullList li:first-child:not(.leaderboard-empty) {
+    color: #ffd400;
+    font-weight: bold;
+    font-size: 1.15em;
+}
+
+/* 랭킹 패널(우측 드로어): 설정 패널(#settingsPanel)과 완전히 대칭되는 구조.
+   #homeContent가 flex:1이라 이 패널이 오른쪽에서 넓어지는 만큼 homeContent가
+   자동으로, 정확히 그만큼 왼쪽으로 밀려나 보인다. */
+#rankingPanel {
+    width: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+    background-color: #0a2422;
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.4);
+    transition: width 0.35s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#homeScreen.ranking-open #rankingPanel {
+    width: 30cqw;
+}
+
+.ranking-panel-content {
+    width: 30cqw;
+    height: 80%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+.ranking-title {
+    color: #ffffff;
+    font-family: sans-serif;
+    font-size: 2cqw;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* 스크롤 영역: 1등부터 쭉 스크롤해서 볼 수 있는 부분. flex:1로 남는 공간을 전부 차지하고,
+   내 순위(#myRankRow)는 이 스크롤 영역 밖에 있어서 스크롤해도 항상 같은 자리에 고정된다
+   (엑셀의 "틀 고정"과 같은 효과 - 별도의 position:sticky 없이 레이아웃만으로 구현). */
+#rankingListScroll {
+    flex: 1;
+    width: 100%;
+    min-height: 0; /* flex 자식이 실제로 넘칠 때 스크롤되게 하려면 필요 */
+    overflow-y: auto;
+}
+
+#rankingFullList {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: #ffffff;
+    font-family: sans-serif;
+    font-size: 1.17cqw;
+}
+
+/* 내 순위 고정 행 */
+#myRankRow {
+    flex-shrink: 0;
+    width: 100%;
+    padding: 0.83cqw 0;
+    border-top: 2px solid rgba(255, 255, 255, 0.3);
+    color: #ffd400;
+    font-weight: bold;
+    font-family: sans-serif;
+    text-align: center;
+    font-size: 1.17cqw;
+}
+
+#closeRankingBtn {
+    flex-shrink: 0;
+    padding: 0.83cqw 3.33cqw;
+    font-size: 1.33cqw;
+    font-weight: bold;
+    border: none;
+    border-radius: 20px;
+    background-color: #ffffff;
+    color: #0e302d;
+    cursor: pointer;
+}
+
+/* 반전 모드: 설정에서 켜면 게임 화면(캔버스) 전체에 색상 반전 필터 적용 */
+#gameCanvas.invert-mode {
+    filter: invert(1);
+}
+
+.settings-title {
+    color: #ffffff;
+    font-family: sans-serif;
+    font-size: 2cqw;
+    margin: 0;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2.5cqw;
+    width: 21.67cqw;
+    color: #ffffff;
+    font-family: sans-serif;
+}
+
+.setting-label {
+    font-size: 1.5cqw;
+}
+
+/* [수정] 기존엔 padding만 있고 너비가 내용물(글자 "ON"/"OFF" 등)에 따라 달라져서
+   토글할 때마다 버튼 가로폭이 미세하게 바뀌었음. width를 고정하고 내용은 flex로
+   가운데 정렬해서, 내용물이 바뀌어도 버튼 크기 자체는 항상 동일하게 유지되도록 함. */
+.setting-row button {
+    width: 5.83cqw;
+    padding: 0.67cqw 0;
+    font-size: 1.33cqw;
+    font-weight: bold;
+    border: none;
+    border-radius: 20px;
+    background-color: #ffffff;
+    color: #0e302d;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* [신규] 켜짐(ON) 상태를 노란색으로 표시 */
+.setting-row button.on {
+    background-color: #ffd400;
+}
+
+.settings-note {
+    margin: -20px 0 0 0;
+    max-width: 21.67cqw;
+    font-size: 1cqw;
+    color: #ffb3b3;
+    font-family: sans-serif;
+    text-align: center;
+}
+
+#closeSettingsBtn {
+    padding: 0.83cqw 3.33cqw;
+    font-size: 1.33cqw;
+    font-weight: bold;
+    border: none;
+    border-radius: 20px;
+    background-color: #ffffff;
+    color: #0e302d;
+    cursor: pointer;
 }

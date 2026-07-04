@@ -9,25 +9,119 @@
     <title>[다이노뮤턴트]다이노 런</title>
 </head>
 <body>
-    <div class="game-container">
+    <!-- [수정] 홈 화면(과 로딩 화면)은 실제 게임 캔버스(16:9 고정)와 달리, 폰 세로 화면 등
+         어떤 비율의 화면이든 그 화면 전체를 자연스럽게 채우도록 .game-container 밖의
+         별도 레이어(.home-container)로 분리했다. 예전엔 이 둘이 같은 16:9 박스 안에 있어서,
+         세로로 긴 폰 화면에서는 홈 화면 전체가 폭 기준으로만 줄어든 얇은 가로 띠 안에
+         욱여넣어지는 문제가 있었다(버튼/글자 비율은 멀쩡한데 세로 공간 자체가 부족했음). -->
+    <div class="home-container">
         <!-- 1. 홈 화면 레이어 -->
+        <!-- [수정] 설정 패널을 반투명 오버레이로 위에 덮는 방식 -> 좌측에서 드로어(서랍)처럼
+             슬라이드되어 나오면서 홈 콘텐츠(#homeContent)를 오른쪽으로 밀어내는 방식으로 변경.
+             패널이 불투명 배경이라 뒤 내용이 안 비치고, homeScreen이 flex-row라서 패널 너비가
+             늘어나는 만큼 homeContent가 자동으로, 정확히 그만큼 오른쪽으로 밀려남. -->
         <div id="homeScreen" class="ui-layer">
-            <h1 class="game-title">다이노 런</h1>
-            <button id="startBtn" onclick="startGameFromHome()">플레이 ▶</button>
+            <button id="homeSettingsBtn" class="corner-btn" onclick="toggleSettings()">
+                <img src="assets/setting/Tribe_Info_Icon-Setting.png" class="btn-icon" alt="설정">
+            </button>
+
+            <!-- 랭킹 미리보기(우측 상단, 고정): 클릭하면 우측에서 전체 랭킹 패널이 슬라이드되어 나옴 -->
+            <div id="rankingPreview" onclick="toggleRanking()">
+                <img src="assets/sprites/RankTitle.png" id="rankTitleImg" alt="랭킹">
+                <ol id="leaderboardList"></ol>
+            </div>
+
+            <div id="settingsPanel">
+                <div class="settings-panel-content">
+                    <h2 class="settings-title">설정</h2>
+
+                    <div class="setting-row">
+                        <span class="setting-label">음악</span>
+                        <button id="settingsSoundBtn" class="sound-btn on" onclick="toggleSound()">
+                            <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
+                            <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
+                        </button>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">히트박스 표시</span>
+                        <button id="settingsHitboxBtn" onclick="toggleHitbox()">OFF</button>
+                    </div>
+                    <p class="settings-note">⚠ 히트박스를 켜면 랭킹에 등록되지 않습니다.</p>
+
+                    <div class="setting-row">
+                        <span class="setting-label">반전 모드</span>
+                        <button id="settingsInvertBtn" onclick="toggleInvert()">OFF</button>
+                    </div>
+
+                    <button id="closeSettingsBtn" onclick="closeSettings()">닫기</button>
+                </div>
+            </div>
+
+            <div id="homeContent">
+                <h1 class="game-title">다이노 런</h1>
+                <div class="home-controls">
+                    <span class="nickname-bg-wrap">
+                        <input id="nicknameInput" type="text" placeholder="닉네임" maxlength="8" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">
+                    </span>
+                    <button id="startBtn" onclick="startGameFromHome()">플레이 ▶</button>
+                </div>
+            </div>
+
+            <!-- 랭킹 패널(우측 드로어): 설정 패널과 대칭 구조. 열리면 이번엔 homeContent가
+                 왼쪽으로 밀려나는 것처럼 보인다(homeContent가 flex:1이라 오른쪽에서
+                 이 패널이 넓어지는 만큼 자동으로 좁아짐). -->
+            <div id="rankingPanel">
+                <div class="ranking-panel-content">
+                    <h2 class="ranking-title">랭킹</h2>
+                    <div id="rankingListScroll">
+                        <ol id="rankingFullList"></ol>
+                    </div>
+                    <div id="myRankRow"></div>
+                    <button id="closeRankingBtn" onclick="closeRanking()">닫기</button>
+                </div>
+            </div>
+
+            <!-- 면책 조항: 사용된 그래픽 리소스가 모바일 게임에서 발췌됐음을 명시 -->
+            <p id="disclaimerText">
+                본 게임은 비상업적 팬메이드 프로젝트이며, 사용된 일부 그래픽 리소스는 모바일 게임에서
+                발췌되었고 저작권은 각 원저작자에게 있습니다. 수익을 창출하지 않으며, 저작권자의 요청 시
+                즉시 삭제합니다.
+            </p>
         </div>
 
-        <!-- 2. 인게임 레이어 -->
+        <!-- 1.5 로딩 화면: 플레이를 눌렀는데 에셋 로딩이 아직 안 끝났을 때만 표시 -->
+        <div id="loadingScreen" class="ui-layer hidden">
+            <img src="assets/setting/Loading.png" id="loadingIcon" alt="로딩중">
+        </div>
+    </div>
+
+    <!-- 2. 인게임 레이어: 실제 달리기 게임은 지금처럼 16:9 비율로 고정 -->
+    <div class="game-container">
         <div id="gameScreen" class="ui-layer hidden">
             <canvas id="gameCanvas"></canvas>
             <button id="pauseBtn" onclick="togglePause()">Ⅱ</button>
+
+            <!-- 점수판 (우측 상단): 최고 기록(작게) 위, 현재 기록(크게) 아래 -->
+            <div id="scoreBoard">
+                <div id="bestScoreText">BEST 0M</div>
+                <div id="currentScoreText">0M</div>
+            </div>
 
             <div id="pauseOverlay" class="hidden">
                 <div class="overlay-content">
                     <button id="resumeBtn" onclick="togglePause()">▶</button>
                     <div class="sub-buttons">
-                        <button id="homeBtn" onclick="goHome()">🏠</button>
-                        <button id="restartBtn" onclick="restartGame()">🔄</button>
-                        <button id="soundBtn" onclick="toggleSound()">🔊</button>
+                        <button id="homeBtn" onclick="goHome()">
+                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈">
+                        </button>
+                        <button id="restartBtn" onclick="restartGame()">
+                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작">
+                        </button>
+                        <button id="soundBtn" class="sound-btn" onclick="toggleSound()">
+                            <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
+                            <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
+                        </button>
                     </div>
                 </div>
             </div>
@@ -35,21 +129,31 @@
             <div id="gameOverOverlay" class="hidden">
                 <div class="overlay-content">
                     <h1 id="gameOverText">GAME OVER</h1>
+                    <p id="finalScoreText">0M</p>
                     <div class="sub-buttons">
-                        <button id="goHomeBtn" onclick="goHome()">🏠</button>
-                        <button id="retryBtn" onclick="restartGame()">🔄</button>
+                        <button id="goHomeBtn" onclick="goHome()">
+                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈">
+                        </button>
+                        <button id="retryBtn" onclick="restartGame()">
+                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작">
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 스크립트 로드: 의존성 순서(클래스 정의 -> 핸들러 -> 메인 로직) -->
+    <!-- 스크립트 로드: 의존성 순서(클래스 정의 -> 핸들러 -> 메인 로직 -> 랭킹) -->
     <script src="js/background.js"></script>
     <script src="js/dino.js"></script>
     <script src="js/obstacle.js"></script>
     <script src="js/gameover.js"></script>
     <script src="js/input.js"></script>
     <script src="js/main.js"></script>
+
+    <!-- 랭킹 시스템: Supabase 프로젝트를 만들기 전까지는 자동으로 비활성화됨 (SUPABASE_SETUP.md 참고) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="js/supabase-config.js"></script>
+    <script src="js/leaderboard.js"></script>
 </body>
 </html>
