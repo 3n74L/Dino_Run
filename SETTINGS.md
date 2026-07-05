@@ -353,12 +353,23 @@ Edge Function 두 개만** 할 수 있습니다:
 
 ### 연동 지점
 - `reallyStartGame()`(`main.js`) → `startRunSession()` 호출.
+- `restartGame()`(`main.js`) → `startRunSession()` 호출.
 - `gameOver()`(`gameover.js`) → `submitScoreToLeaderboard(nickname, finalScore)` 호출
   (닉네임은 기존 `nicknameInput` 전역 변수 재사용, 이 함수 안에서 `debugHitbox` 켜짐 여부도
   같이 검사해서 히트박스 켠 판은 아예 제출하지 않음. `deviceId`도 같이 실어 보냄).
 - `goHome()`(`main.js`) → `refreshLeaderboardUI()` 호출(홈으로 돌아올 때 TOP 5 미리보기 갱신).
 - `openRanking()`(`main.js`, `toggleRanking()`으로 열기/닫기 토글) → `refreshFullRankingUI()`
   호출(패널을 열 때만 전체 목록 + 내 순위를 불러옴 — 홈 화면 로드마다 매번 불러올 필요는 없어서).
+
+> ⚠️ **시행착오 기록(버그, 수정됨)**: `restartGame()`(일시정지/게임오버 화면의 "재시작"
+> 버튼)이 `startRunSession()`을 호출하지 않고 있었습니다. `currentRunToken`은 제출 시
+> 즉시 소진(`null`)되는 1회용이라, **홈으로 돌아가지 않고 재시작만 반복하면 두 번째
+> 판부터는 토큰이 없어서 `submitScoreToLeaderboard()`가 매번 조용히(에러/로그 없이)
+> 아무것도 제출하지 않고 리턴**되고 있었습니다 - "기록이 랭킹에 등록 안 된다"는 문제의
+> 원인. `reallyStartGame()`과 동일하게 `restartGame()`에도 `startRunSession()` 호출을
+> 추가했습니다. 재발 방지로 `submitScoreToLeaderboard()`가 토큰이 없을 때 콘솔 경고를
+> 남기도록도 바꿨습니다. **앞으로 게임을 새로 시작하는 진입점을 추가한다면 그 안에도
+> `startRunSession()` 호출을 꼭 넣으세요.**
 
 ### 랭킹 패널 UI (신규: 우측 드로어, 설정 패널과 대칭)
 `#settingsPanel`(좌측)과 완전히 같은 방식으로 `#rankingPanel`을 우측에 배치했습니다.

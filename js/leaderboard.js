@@ -56,8 +56,16 @@ async function startRunSession() {
 }
 
 // 게임오버 시 호출: 최종 점수를 서버로 보내 검증 후 기록한다.
+// [수정] 예전엔 토큰이 없으면 아무 로그도 없이 조용히 리턴해서, restartGame()이
+// startRunSession()을 호출하지 않던 버그(홈으로 안 돌아가고 재시작만 누르면 두 번째
+// 판부터 기록이 랭킹에 등록되지 않던 문제)를 콘솔로도 알아채기 어려웠다. 이제 토큰이 없는
+// 경우를 콘솔 경고로 남겨서, 앞으로 비슷한 문제가 생겨도 F12 콘솔에서 바로 확인 가능하다.
 async function submitScoreToLeaderboard(nickname, score) {
-    if (!supabaseClient || !currentRunToken) return;
+    if (!supabaseClient) return;
+    if (!currentRunToken) {
+        console.warn('[Leaderboard] 제출용 토큰이 없어 이번 판 기록을 랭킹에 올리지 못했습니다. (startRunSession()이 호출됐는지 확인)');
+        return;
+    }
 
     // 설정 화면 안내 문구("히트박스를 켜면 랭킹에 등록되지 않습니다")를 실제로 강제하는 부분.
     if (window.gameConfig && window.gameConfig.debugHitbox) {

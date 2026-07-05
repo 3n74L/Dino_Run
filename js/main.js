@@ -305,6 +305,14 @@ function restartGame() {
         dino = new Dino(ctx, dinoParts);
     }
 
+    // [버그 수정] 이 함수(홈 화면을 거치지 않고 일시정지/게임오버 화면에서 바로 "재시작"할
+    // 때 호출됨)가 startRunSession()을 호출하지 않아서, 첫 판에서 이미 소진된
+    // currentRunToken이 재발급되지 않았다. 그 결과 두 번째 판부터는(홈으로 안 돌아가고
+    // 재시작만 누르면) submitScoreToLeaderboard()가 매번 토큰 없음으로 조용히 아무 것도
+    // 제출하지 않는 채 리턴되고 있었다 - "기록이 랭킹에 등록 안 된다"는 문제의 원인.
+    // reallyStartGame()과 동일하게 새 토큰을 받아둔다.
+    if (typeof startRunSession === 'function') startRunSession();
+
     // 6. 장애물 생성 새 스케줄 시작
     spawnObstacle();
 
