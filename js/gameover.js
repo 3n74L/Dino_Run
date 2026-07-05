@@ -25,11 +25,16 @@ function gameOver() {
     dinoDieX = dino.x;
     dinoDieAngle = 0;
 
+    // [신규] 게임오버 효과음
+    if (typeof playGameOverSfx === 'function') playGameOverSfx();
+
     // 최종 기록 확정 및 최고 기록 갱신 (currentScore/bestScore는 main.js에서 관리)
     const finalScore = Math.floor(currentScore);
     if (finalScore > bestScore) {
         bestScore = finalScore;
         localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(bestScore));
+        // [신규] 최고 기록 경신 효과음 (게임오버 효과음과 별개로 같이 재생됨)
+        if (typeof playNewBestSfx === 'function') playNewBestSfx();
     }
     const finalScoreText = document.getElementById('finalScoreText');
     if (finalScoreText) finalScoreText.innerText = `${finalScore}M`;
@@ -44,7 +49,10 @@ function gameOver() {
 }
 
 // 루프 내에서 호출될 게임오버 렌더링 연출 함수
-function drawGameOverSequence(ctx, canvas, background, obstacles) {
+// [수정] deltaFactor(기본 1): 주사율 정규화 델타타임 배율(main.js 참고). 사망 연출
+// (튀어오름/회전/무덤 확장)도 매 프레임 고정량으로 움직이던 부분이라, 저주사율 기기에서
+// 이 연출만 유독 느리게 보이지 않도록 동일하게 적용한다.
+function drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor = 1) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     background.draw();
 
@@ -79,9 +87,9 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
     }
     // 2단계: 위로 살짝 튀어올랐다가 천천히 회전하면서 낙하
     else if (diePhase === 'spinning') {
-        dinoDieVy += 0.25;
-        dinoDieY += dinoDieVy;
-        dinoDieAngle -= 5;
+        dinoDieVy += 0.25 * deltaFactor;
+        dinoDieY += dinoDieVy * deltaFactor;
+        dinoDieAngle -= 5 * deltaFactor;
 
         if (dinoDieY >= window.gameConfig.groundY) {
             dinoDieY = window.gameConfig.groundY;
@@ -121,7 +129,7 @@ function drawGameOverSequence(ctx, canvas, background, obstacles) {
     // 3단계: 무덤 생성 및 확장
     else if (diePhase === 'buried') {
         if (showCemetery && cemeteryScale < 0.45) {
-            cemeteryScale += 0.03;
+            cemeteryScale += 0.03 * deltaFactor;
             if (cemeteryScale > 0.45) cemeteryScale = 0.45;
         }
 

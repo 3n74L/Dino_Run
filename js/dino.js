@@ -42,29 +42,46 @@ class Dino {
         }
     }
 
-    update() {
-        // [수정] 기존에는 하강(vy>0) 시 중력이 2.2배로 붙어서 정점 찍고 순식간에 뚝 떨어졌음.
-        // "빠르게 올라가고 느리게 내려오는" 느낌을 위해 상승/정점/하강 3단계로 분리:
-        //  1) 상승 중(vy<0)이고 정점 근처가 아니면 -> 중력을 세게(riseGravityMultiplier) 줘서 스냅감 있게 빨리 올라감
-        //  2) 정점 근처(|vy|가 작음) -> 중력을 아주 약하게 줘서 살짝 머무름
-        //  3) 하강 중(vy>0) -> 중력을 약하게(fallGravityMultiplier) 줘서 천천히, 부드럽게 낙하
-        let currentGravity;
-        if (Math.abs(this.vy) < this.apexVelocityThreshold) {
-            currentGravity = this.gravity * this.apexGravityMultiplier;
-        } else if (this.vy < 0) {
-            currentGravity = this.gravity * this.riseGravityMultiplier;
-        } else {
-            currentGravity = this.gravity * this.fallGravityMultiplier;
-        }
+    // [수정] deltaFactor(기본 1): 기기 주사율에 관계없이 실제 시간 기준으로 동일하게
+    // 움직이도록 하는 델타타임 배율. main.js의 FRAME_REFERENCE_MS(240fps 기준) 설명 참고.
+    // 240Hz 모니터에서는 deltaFactor가 항상 1에 가까워서 기존 동작과 100% 동일하다.
+    //
+    // [버그 수정] deltaFactor를 그냥 한 번에 곱해서 적용했더니(예: 60Hz에서 deltaFactor≈4),
+    // 저주사율 기기에서 점프 높이/시간이 오히려 훨씬 짧아지는 문제가 있었다. 원인은
+    // 상승/정점/하강 구간을 가르는 apexVelocityThreshold(=5, vy가 이 범위 안이면 "정점"으로
+    // 판단)가 아주 좁은 창(-5~+5)인데, deltaFactor가 크면 vy가 한 번의 update() 호출 만에
+    // 이 창을 훌쩍 건너뛰어버려서(240Hz라면 여러 프레임에 걸쳐 조금씩 통과했을 구간을 60Hz는
+    // 한두 번의 큰 스텝으로 관통) 정점에 머무는 실제 시간이 크게 줄어들었다. deltaFactor를
+    // "240fps 기준 한 프레임 크기"의 작은 스텝 여러 개로 쪼개 반복 적용하면, 몇 Hz에서
+    // 계산하든 항상 똑같이 촘촘한 경로로 정점 구간을 통과하게 되어 문제가 해결된다.
+    update(deltaFactor = 1) {
+        const steps = Math.max(1, Math.ceil(deltaFactor));
+        const stepDelta = deltaFactor / steps;
 
-        this.vy += currentGravity;
-        this.y += this.vy;
+        for (let i = 0; i < steps; i++) {
+            // [수정] 기존에는 하강(vy>0) 시 중력이 2.2배로 붙어서 정점 찍고 순식간에 뚝 떨어졌음.
+            // "빠르게 올라가고 느리게 내려오는" 느낌을 위해 상승/정점/하강 3단계로 분리:
+            //  1) 상승 중(vy<0)이고 정점 근처가 아니면 -> 중력을 세게(riseGravityMultiplier) 줘서 스냅감 있게 빨리 올라감
+            //  2) 정점 근처(|vy|가 작음) -> 중력을 아주 약하게 줘서 살짝 머무름
+            //  3) 하강 중(vy>0) -> 중력을 약하게(fallGravityMultiplier) 줘서 천천히, 부드럽게 낙하
+            let currentGravity;
+            if (Math.abs(this.vy) < this.apexVelocityThreshold) {
+                currentGravity = this.gravity * this.apexGravityMultiplier;
+            } else if (this.vy < 0) {
+                currentGravity = this.gravity * this.riseGravityMultiplier;
+            } else {
+                currentGravity = this.gravity * this.fallGravityMultiplier;
+            }
 
-        const groundLimit = window.gameConfig ? window.gameConfig.groundY : 560;
-        if (this.y >= groundLimit) {
-            this.y = groundLimit;
-            this.vy = 0;
-            this.isJumping = false;
+            this.vy += currentGravity * stepDelta;
+            this.y += this.vy * stepDelta;
+
+            const groundLimit = window.gameConfig ? window.gameConfig.groundY : 560;
+            if (this.y >= groundLimit) {
+                this.y = groundLimit;
+                this.vy = 0;
+                this.isJumping = false;
+            }
         }
 
         const time = Date.now() / 100;

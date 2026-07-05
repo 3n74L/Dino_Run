@@ -146,6 +146,43 @@ let obstacleTimeout = null;
 let jumpBufferTime = 0;
 const JUMP_BUFFER_MS = 150; // 선입력 유효 기간 (0.15초)
 
+// [신규] 기기 주사율(모니터 Hz)에 관계없이 게임 속도가 항상 동일하게 느껴지도록 하는
+// 델타타임 정규화. 기존 코드는 "매 프레임(=requestAnimationFrame 호출마다) 고정량 이동"
+// 방식이라, 호출 빈도(주사율)가 곧 실제 속도가 되어버렸다. 240Hz 모니터는 초당 240번
+// 호출되지만 대부분의 폰은 초당 60~120번만 호출되므로, 같은 코드가 기기마다 완전히
+// 다른 체감 속도로 동작했다(폰에서 공룡 점프/배경 이동이 몇 배나 느려짐). 게다가 장애물
+// 생성 간격은 setTimeout(실제 ms 기준)이라 주사율과 무관한데 이동 속도만 주사율에
+// 종속되니, 저주사율 기기에서는 장애물이 미처 화면 밖으로 안 빠진 채 다음 장애물이
+// 겹쳐서 나오는 문제까지 있었다.
+//
+// FRAME_REFERENCE_MS를 "240fps일 때의 한 프레임 시간"으로 잡은 이유: 지금까지 튜닝된
+// 모든 물리 상수(dino.js의 gravity/jumpStrength, baseSpeed 등)는 개발 환경(240Hz 모니터)
+// 에서 체감으로 맞춘 값이다. 240을 기준으로 삼으면 240Hz에서는 deltaFactor가 항상 1에
+// 가까워서 기존 동작과 100% 동일하게 유지되고, 그보다 느린 기기에서만 deltaFactor가
+// 1보다 커지는 방식으로 "부족한 이동량"을 보정해 실제 시간(초) 기준 속도를 통일한다.
+const FRAME_REFERENCE_MS = 1000 / 240;
+// tab 전환/백그라운드 복귀처럼 프레임이 한참 멈췄다가 재개될 때, 그 멈춘 시간까지
+// deltaFactor에 그대로 반영하면 물리가 한 프레임에 몰아서 폭주할 수 있어 상한을 둔다.
+const MAX_DELTA_FACTOR = 20;
+let lastFrameTime = null;
+
+function computeDeltaFactor(timestamp) {
+    if (lastFrameTime === null) {
+        lastFrameTime = timestamp;
+        return 1;
+    }
+    const rawDelta = (timestamp - lastFrameTime) / FRAME_REFERENCE_MS;
+    lastFrameTime = timestamp;
+    return Math.min(Math.max(rawDelta, 0), MAX_DELTA_FACTOR);
+}
+
+// 일시정지/재시작 등으로 루프가 끊겼다가 다시 시작될 때 호출한다. 끊겨있던 실제 시간을
+// 다음 프레임의 deltaFactor에 몰아넣지 않도록, 다음 프레임을 "기준 프레임"(deltaFactor=1)
+// 으로 리셋한다.
+function resetFrameTiming() {
+    lastFrameTime = null;
+}
+
 // [신규] 에셋 로딩 상태. 플레이 버튼을 눌렀는데 아직 로딩이 안 끝났으면 로딩 화면을 보여주고,
 // 로딩이 끝나는 즉시(추가 클릭 없이) 자동으로 게임을 시작한다.
 let assetsReady = false;
@@ -158,6 +195,11 @@ const METERS_PER_PIXEL = 0.1;
 let currentScore = 0;
 let bestScore = Number(localStorage.getItem(BEST_SCORE_STORAGE_KEY)) || 0;
 
+// [신규] 점수 2만(미터) 돌파 시 배경음악을 아레나 트랙으로 한 번만 전환하기 위한 플래그.
+// 새 판이 시작될 때(restartGame/reallyStartGame)마다 false로 리셋된다.
+const ARENA_BGM_SCORE_THRESHOLD = 20000;
+let arenaBgmTriggered = false;
+
 function updateScoreUI() {
     const currentEl = document.getElementById('currentScoreText');
     const bestEl = document.getElementById('bestScoreText');
@@ -166,9 +208,24 @@ function updateScoreUI() {
 }
 updateScoreUI(); // 최고 기록 초기 표시
 
+// [신규] 홈 화면 배경음악 재생 시도. 사용자가 아직 페이지와 상호작용하기 전이라 대부분의
+// 브라우저가 자동재생을 막지만(조용히 무시됨), js/audio.js의 첫 클릭/키/터치 리스너가
+// 실제로 재생을 다시 시도해준다.
+if (typeof playHomeBgm === 'function') playHomeBgm();
+
 // 공통 점프 실행 함수
+// [버그 수정] 홈 화면에서도 (버튼/입력칸이 아닌) 화면 아무 곳이나 클릭하면 이 함수가
+// 호출됐다. 에셋 로딩이 끝나면 dino 객체가 이미 만들어져 있어서(홈 화면에 있는 동안에도),
+// 게임 화면이 안 보이는 상태에서도 dino.jump()가 조용히 호출되고 있었다 - 시각적으로는
+// 아무 영향 없었지만(그 dino 인스턴스는 실제 플레이 시작 시 새로 교체되어 버려짐), 이번에
+// 점프 효과음을 추가하면서 "게임 시작할 때(=홈 화면에서 플레이 버튼 누르기 전후로 클릭할
+// 때) 점프 소리가 들리는" 문제로 드러났다. 게임 화면이 실제로 보일 때만 점프 입력을
+// 받도록 가드를 추가해서 해결.
 function handleJump() {
     if (isGameOver || isPaused) return;
+
+    const gameScreen = document.getElementById('gameScreen');
+    if (!gameScreen || gameScreen.classList.contains('hidden')) return;
 
     if (dino) {
         if (dino.y >= window.gameConfig.groundY) {
@@ -199,6 +256,7 @@ function togglePause() {
     } else {
         overlay.classList.add('hidden');
         if (!isLoopRunning) {
+            resetFrameTiming(); // 일시정지 중 멈춰있던 시간이 델타타임에 몰아서 반영되지 않도록
             requestAnimationFrame(gameLoop);
         }
     }
@@ -232,6 +290,8 @@ function restartGame() {
     obstacles = []; // 기존 장애물 전부 제거
     currentScore = 0;
     updateScoreUI();
+    arenaBgmTriggered = false; // [신규] 새 판이니 아레나 배경음악 전환 여부도 리셋
+    if (typeof playGameBgm === 'function') playGameBgm(); // [신규] 인게임 배경음악 재생
 
     // 5. 공룡 인스턴스를 새롭게 생성하여 잔존 물리 데이터 완벽 초기화
     if (dinoParts) {
@@ -242,6 +302,7 @@ function restartGame() {
     spawnObstacle();
 
     // 7. 루프가 완전히 끊겼을 때만 안전하게 실행
+    resetFrameTiming(); // 새 판을 델타타임 기준 프레임(deltaFactor=1)부터 시작
     if (!isLoopRunning) {
         requestAnimationFrame(gameLoop);
     }
@@ -273,6 +334,9 @@ function goHome() {
 
     // [신규] 방금 새 기록이 등록됐을 수 있으니 홈으로 돌아올 때 랭킹 목록을 다시 불러온다.
     if (typeof refreshLeaderboardUI === 'function') refreshLeaderboardUI();
+
+    // [신규] 인게임 배경음악(또는 아레나 배경음악)에서 홈 화면 배경음악으로 전환
+    if (typeof playHomeBgm === 'function') playHomeBgm();
 }
 
 // [수정] 소리 버튼을 이모지 텍스트 대신 Sound_Off.png(항상 표시) + Sound_On.png(소리 켜졌을
@@ -290,6 +354,8 @@ function toggleSound() {
     document.querySelectorAll('.sound-btn').forEach(btn => {
         btn.classList.toggle('on', isAudioOn);
     });
+    // [신규] 지금 재생 "되어야 하는" 배경음악도 같이 멈추거나 재개한다.
+    if (typeof applyAudioOnState === 'function') applyAudioOnState();
 }
 
 // 히트박스 표시 토글 (설정 화면 전용). 개발용 디버그 시각화를 플레이어가 직접 켤 수 있게 하되,
@@ -387,6 +453,10 @@ function closeRanking() {
 }
 
 function toggleRanking() {
+    // [신규] #rankingPreview는 <button>이 아니라 <div>라서 audio.js의 전역 버튼 클릭음
+    // 리스너가 안 잡는다. 여기서 직접 재생해서 다른 버튼들과 동일하게 클릭음이 나도록 함.
+    if (typeof playButtonClickSfx === 'function') playButtonClickSfx();
+
     const homeScreen = document.getElementById('homeScreen');
     if (homeScreen.classList.contains('ranking-open')) {
         closeRanking();
@@ -540,7 +610,7 @@ const checkLoad = setInterval(() => {
 }, 100);
 
 // 8. 메인 루프
-function gameLoop() {
+function gameLoop(timestamp) {
     if (!isLoopRunning && (document.getElementById('gameScreen').classList.contains('hidden') || isPaused)) {
         return;
     }
@@ -552,23 +622,33 @@ function gameLoop() {
         return;
     }
 
+    // [신규] 이번 프레임에 적용할 델타타임 배율(주사율 정규화). 자세한 설명은 위쪽
+    // FRAME_REFERENCE_MS 선언부 주석 참고.
+    const deltaFactor = computeDeltaFactor(timestamp);
+
     if (isGameOver) {
         // 필터는 drawGameOverSequence 내부에서 background.getFilterString()으로 일관되게 적용됨
-        drawGameOverSequence(ctx, canvas, background, obstacles);
+        drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor);
         requestAnimationFrame(gameLoop);
         return;
     }
 
     if (window.gameConfig.baseSpeed < window.gameConfig.maxSpeed) {
-        window.gameConfig.baseSpeed += 0.0004;
+        window.gameConfig.baseSpeed += 0.0004 * deltaFactor;
     }
 
     // 이동 거리만큼 현재 기록 누적 (죽으면 이 블록에 도달하지 않으므로 자동으로 멈춤)
-    currentScore += window.gameConfig.baseSpeed * METERS_PER_PIXEL;
+    currentScore += window.gameConfig.baseSpeed * deltaFactor * METERS_PER_PIXEL;
     updateScoreUI();
 
-    if (dino) dino.update();
-    background.update();
+    // [신규] 점수 2만(미터) 돌파 시 배경음악을 서서히 아레나 트랙으로 전환 (판당 한 번만)
+    if (!arenaBgmTriggered && currentScore >= ARENA_BGM_SCORE_THRESHOLD) {
+        arenaBgmTriggered = true;
+        if (typeof fadeToArenaBgm === 'function') fadeToArenaBgm();
+    }
+
+    if (dino) dino.update(deltaFactor);
+    background.update(deltaFactor);
 
     if (dino && dino.y >= window.gameConfig.groundY && jumpBufferTime > 0) {
         if (Date.now() - jumpBufferTime <= JUMP_BUFFER_MS) {
@@ -595,7 +675,7 @@ function gameLoop() {
         // gameOver()가 여러 번 중복 호출되던 문제 방지)
         if (isGameOver) return true;
 
-        obs.update();
+        obs.update(deltaFactor);
         obs.draw();
         if (dino && checkCollision(dino, obs)) {
             gameOver();
@@ -617,6 +697,9 @@ function gameLoop() {
 // false) 바로 게임을 시작하지 않고 로딩 화면을 띄운 뒤, checkLoad가 로딩 완료를 감지하는
 // 즉시(추가 클릭 없이) reallyStartGame()을 대신 호출해준다.
 function startGameFromHome() {
+    // [신규] 시작 전용 알림음 (다른 버튼들의 공통 클릭음과 구분됨 - js/audio.js 참고)
+    if (typeof playStartClickSfx === 'function') playStartClickSfx();
+
     closeSettings();
     closeRanking();
 
@@ -646,6 +729,8 @@ function reallyStartGame() {
     obstacles = [];
     currentScore = 0;
     updateScoreUI();
+    arenaBgmTriggered = false; // [신규] 새 판이니 아레나 배경음악 전환 여부도 리셋
+    if (typeof playGameBgm === 'function') playGameBgm(); // [신규] 인게임 배경음악 재생
     if (background && typeof background.reset === 'function') {
         background.reset();
     }
@@ -665,6 +750,7 @@ function reallyStartGame() {
     spawnObstacle();
 
     // 중복 루프 방지: 기존 루프가 완전히 꺼졌거나 실행 중이 아닐 때만 깨움
+    resetFrameTiming(); // 새 판을 델타타임 기준 프레임(deltaFactor=1)부터 시작
     if (!isLoopRunning) {
         requestAnimationFrame(gameLoop);
     }

@@ -96,11 +96,13 @@ class Background {
         return baseHeight - (Math.sin(clamped * Math.PI) * amplitude);
     }
 
-    update() {
+    // [수정] deltaFactor(기본 1): 주사율 정규화 델타타임 배율. main.js의 FRAME_REFERENCE_MS
+    // 설명 참고. 240Hz 모니터에서는 항상 1에 가까워서 기존 동작과 100% 동일하게 유지된다.
+    update(deltaFactor = 1) {
         const baseSpeed = window.gameConfig.baseSpeed;
         this.layers.forEach(layer => {
             if (layer.drawWidth === 0) return;
-            layer.x -= baseSpeed * layer.multiplier;
+            layer.x -= baseSpeed * layer.multiplier * deltaFactor;
             // [수정] 기존에는 x가 -drawWidth를 넘어가면(오버슈트) 그 초과분을 버리고
             // 그냥 0으로 리셋했음. 평소엔 티가 안 나지만 speed가 커서 한 프레임 이동량이
             // 클수록 오버슈트도 커져서, 리셋 순간 배경이 그만큼 순간적으로 튀며 검은 틈이
@@ -125,18 +127,18 @@ class Background {
         // 상태 관리 스위치문 (로직 유지)
         switch (this.state) {
             case 'day':
-                this.celestialX -= baseSpeed * this.celestialSpeedRate;
+                this.celestialX -= baseSpeed * this.celestialSpeedRate * deltaFactor;
                 if (this.celestialX + imgWidth <= 10) this.state = 'sun_phase_out';
                 break;
             case 'sun_phase_out':
-                this.celestialX -= this.transitionSpeed;
+                this.celestialX -= this.transitionSpeed * deltaFactor;
                 if (this.celestialX + imgWidth < -300) {
                     this.state = 'moon_phase_in';
                     this.celestialX = 1500;
                 }
                 break;
             case 'moon_phase_in':
-                this.celestialX -= this.transitionSpeed;
+                this.celestialX -= this.transitionSpeed * deltaFactor;
                 if (this.celestialX <= this.targetX) {
                     this.celestialX = this.targetX;
                     // [수정] 바로 'night'로 가지 않고, 0.3초짜리 감속 구간을 거침
@@ -150,23 +152,23 @@ class Background {
                 const t = Math.min(1, (Date.now() - this.settleStartTime) / this.settleDurationMs);
                 const eased = 1 - Math.pow(1 - t, 3); // ease-out: 처음엔 그대로, 끝에서 부드럽게 목표 속도로 수렴
                 const currentSpeed = this.settleStartSpeed + (targetSpeed - this.settleStartSpeed) * eased;
-                this.celestialX -= currentSpeed;
+                this.celestialX -= currentSpeed * deltaFactor;
                 if (t >= 1) this.state = 'night';
                 break;
             }
             case 'night':
-                this.celestialX -= baseSpeed * this.celestialSpeedRate;
+                this.celestialX -= baseSpeed * this.celestialSpeedRate * deltaFactor;
                 if (this.celestialX + imgWidth <= 10) this.state = 'moon_phase_out';
                 break;
             case 'moon_phase_out':
-                this.celestialX -= this.transitionSpeed;
+                this.celestialX -= this.transitionSpeed * deltaFactor;
                 if (this.celestialX + imgWidth < -this.spawnMargin) {
                     this.state = 'sun_phase_in';
                     this.celestialX = 1200;
                 }
                 break;
             case 'sun_phase_in':
-                this.celestialX -= this.transitionSpeed;
+                this.celestialX -= this.transitionSpeed * deltaFactor;
                 if (this.celestialX <= this.targetX) {
                     this.celestialX = this.targetX;
                     // [수정] 바로 'day'로 가지 않고, 0.3초짜리 감속 구간을 거침
@@ -180,17 +182,22 @@ class Background {
                 const t = Math.min(1, (Date.now() - this.settleStartTime) / this.settleDurationMs);
                 const eased = 1 - Math.pow(1 - t, 3);
                 const currentSpeed = this.settleStartSpeed + (targetSpeed - this.settleStartSpeed) * eased;
-                this.celestialX -= currentSpeed;
+                this.celestialX -= currentSpeed * deltaFactor;
                 if (t >= 1) this.state = 'day';
                 break;
             }
         }
 
         // 색상 보간 및 어둠 값 계산
-        this.celestialY = this.getCelestialY(this.celestialX);
-        this.currentRGB.r += (this.targetRGB.r - this.currentRGB.r) * this.colorLerpSpeed;
-        this.currentRGB.g += (this.targetRGB.g - this.currentRGB.g) * this.colorLerpSpeed;
-        this.currentRGB.b += (this.targetRGB.b - this.currentRGB.b) * this.colorLerpSpeed;
+        // [수정] colorLerpSpeed는 "매 프레임 남은 차이의 5%만큼 좁힌다"는 지수 감쇠 방식이라,
+        // deltaFactor를 그냥 곱하면(특히 deltaFactor가 클 때) 한 번에 100%를 넘겨 되튀는
+        // 등 불안정해질 수 있다. 지수 감쇠를 가변 시간 간격에 맞게 정확히 일반화하는
+        // 공식(1 - (1-rate)^deltaFactor)을 사용해 몇 배속이 되든 항상 0~1 사이로 안정적으로
+        // 수렴하게 한다.
+        const rgbLerpFactor = 1 - Math.pow(1 - this.colorLerpSpeed, deltaFactor);
+        this.currentRGB.r += (this.targetRGB.r - this.currentRGB.r) * rgbLerpFactor;
+        this.currentRGB.g += (this.targetRGB.g - this.currentRGB.g) * rgbLerpFactor;
+        this.currentRGB.b += (this.targetRGB.b - this.currentRGB.b) * rgbLerpFactor;
 
         this.darkness = ((this.dayRGB.r - this.currentRGB.r) / (this.dayRGB.r - this.nightRGB.r || 1)) * 0.40;
     }

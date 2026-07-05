@@ -82,8 +82,11 @@ class Obstacle {
         }
     }
 
-    update() {
-        this.x -= (window.gameConfig.baseSpeed + this.speedOffset);
+    // [수정] deltaFactor(기본 1): 주사율 정규화 델타타임 배율. main.js의 FRAME_REFERENCE_MS
+    // 설명 참고. 이게 없으면 저주사율 기기(대부분의 폰)에서 이동 속도만 느려지고 생성
+    // 간격(setTimeout, 실제 ms 기준)은 그대로라 장애물끼리 겹쳐서 나오는 문제가 있었다.
+    update(deltaFactor = 1) {
+        this.x -= (window.gameConfig.baseSpeed + this.speedOffset) * deltaFactor;
 
         if (this.isAirborne && this.images.length > 0) {
             if (Date.now() - this.lastFrameTime > this.flapInterval) {
