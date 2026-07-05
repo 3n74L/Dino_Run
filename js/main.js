@@ -200,6 +200,13 @@ let bestScore = Number(localStorage.getItem(BEST_SCORE_STORAGE_KEY)) || 0;
 const ARENA_BGM_SCORE_THRESHOLD = 20000;
 let arenaBgmTriggered = false;
 
+// [신규] 공중 장애물(프테라노돈)의 속도 편차(obstacle.js의 speedOffset) 중 "느림" 쪽은
+// 이 점수(미터)를 넘기 전까지는 나오지 않는다. baseSpeed가 아직 낮은 초반에는 ±0.1~0.3
+// 편차의 상대적 비중이 커서, 느린 프테라 바로 뒤에 빠른 프테라가 붙어 나오면 점프할 시간이
+// 없을 정도로 간격이 좁아지는 문제가 있었다. baseSpeed가 충분히 오른 뒤(같은 편차라도
+// 상대적으로 미미해짐)에만 느림/빠름을 둘 다 허용한다.
+const PTERA_SLOW_UNLOCK_SCORE = 250;
+
 function updateScoreUI() {
     const currentEl = document.getElementById('currentScoreText');
     const bestEl = document.getElementById('bestScoreText');

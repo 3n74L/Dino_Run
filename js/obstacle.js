@@ -33,8 +33,12 @@ class Obstacle {
 
             this.lastFrameTime = Date.now() - Math.floor(Math.random() * 200);
             this.flapInterval = 180 + Math.random() * 60;
-            // 오차범위 ±0.1 ~ ±0.3 속도 편차 적용
-            const sign = Math.random() < 0.5 ? -1 : 1;
+            // 오차범위 ±0.1 ~ ±0.3 속도 편차 적용.
+            // [수정] main.js의 PTERA_SLOW_UNLOCK_SCORE(기본 250M) 전까지는 "느림"이 아예
+            // 안 나오게 부호를 항상 +로 고정한다(느린 프테라 뒤에 빠른 프테라가 붙어 나오면
+            // 점프 시간이 없을 정도로 초반 baseSpeed 기준 편차 비중이 컸던 문제 완화).
+            const canBeSlow = currentScore >= PTERA_SLOW_UNLOCK_SCORE;
+            const sign = canBeSlow && Math.random() < 0.5 ? -1 : 1;
             this.speedOffset = sign * (0.1 + Math.random() * 0.2);
         } else {
             this.images = [];
