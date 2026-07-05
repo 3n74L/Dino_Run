@@ -627,7 +627,7 @@ function gameLoop(timestamp) {
     const deltaFactor = computeDeltaFactor(timestamp);
 
     if (isGameOver) {
-        // 필터는 drawGameOverSequence 내부에서 background.getFilterString()으로 일관되게 적용됨
+        // 어둠 처리는 drawGameOverSequence 내부에서 background.getDarknessAlpha()로 일관되게 적용됨
         drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor);
         requestAnimationFrame(gameLoop);
         return;
@@ -663,11 +663,16 @@ function gameLoop(timestamp) {
     // B. 배경 그리기 (달 포함)
     background.draw();
 
-    // C. 장애물 및 공룡 그리기 (필터 적용)
+    // C. 장애물 및 공룡 그리기
     // [수정] 배경(레이어)은 기본 강도(1.5)로 어두워지지만, 장애물/공룡은 달처럼 시야 확보를
-    // 위해 더 약한 강도(1.0)로만 어두워지도록 함. 계산 공식은 여전히 getFilterString() 한
-    // 곳에서만 관리되므로 게임오버 연출(gameover.js)과도 항상 같은 결과를 보장함.
-    ctx.filter = background.getFilterString(1.0);
+    // 위해 더 약한 강도(1.0)로만 어두워지도록 함. 예전엔 ctx.filter='brightness(...)'로
+    // 처리했는데, 캔버스 필터가 켜진 상태에서 그려지는 drawImage마다 비용이 커서(장애물+공룡
+    // 파츠 합쳐 한 프레임에 여러 번) 밤에 프레임 드랍이 심해지는 주된 원인이었다. 이제
+    // getDarknessAlpha(1.0)로 얻은 알파값을 각 draw()에 넘겨서, 그린 이미지 위에 반투명
+    // 검은 사각형을 덧칠하는 방식(단순 알파 블렌딩, 훨씬 저렴함)으로 어둡게 한다. 계산 공식은
+    // 여전히 getDarknessAlpha() 한 곳에서만 관리되므로 게임오버 연출(gameover.js)과도 항상
+    // 같은 결과를 보장함.
+    const fgDarknessAlpha = background.getDarknessAlpha(1.0);
 
     obstacles = obstacles.filter(obs => {
         // [수정] 한 프레임에서 이미 충돌/게임오버가 확정되면 나머지 장애물은 더 이상
@@ -676,7 +681,7 @@ function gameLoop(timestamp) {
         if (isGameOver) return true;
 
         obs.update(deltaFactor);
-        obs.draw();
+        obs.draw(fgDarknessAlpha);
         if (dino && checkCollision(dino, obs)) {
             gameOver();
             return true;
@@ -684,10 +689,7 @@ function gameLoop(timestamp) {
         return obs.x + obs.width > 0;
     });
 
-    if (dino) dino.draw();
-
-    // 필터 해제
-    ctx.filter = 'none';
+    if (dino) dino.draw(fgDarknessAlpha);
 
     requestAnimationFrame(gameLoop);
 }

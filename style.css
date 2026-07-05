@@ -547,6 +547,7 @@ img {
 #nicknameInput {
     position: relative;
     z-index: 1;
+    text-align: center;
     padding: clamp(8px, 1.25cqw, 15px) clamp(10px, 1.5cqw, 18px);
     font-family: sans-serif; /* [수정] 플레이 버튼과 동일한 글꼴로 통일 */
     font-size: clamp(14px, 2cqw, 24px); /* [수정] 플레이 버튼과 동일한 크기로 통일 */

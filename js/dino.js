@@ -95,9 +95,16 @@ class Dino {
     // -> save/translate/rotate/restore로 "현재 좌표계에 상대적으로" 그리도록 변경.
     // 이렇게 하면 바깥에서 걸어둔 회전(게임오버 스핀 등)이 그대로 유지된 채
     // 그 위에 각 파츠의 자체 회전(다리 움직임 등)이 얹어짐.
-    drawPart(partName, angle = 0) {
+    // [수정] darknessAlpha(기본 0): 밤에 공룡을 살짝 어둡게 하기 위한 값(배경보다는 약하게,
+    // background.js의 getDarknessAlpha(1.0) 결과). 처음엔 그린 파츠 위에 반투명 검은
+    // 사각형을 그냥 덧칠했는데, 파츠 이미지가 회전을 위해 여백을 넉넉히 두고 있어서 그
+    // 여백까지 네모나게 어두워져 마치 히트박스 표시처럼 보이는 문제가 있었다. 대신
+    // background.js의 getDarkenedSprite()로 실루엣 그대로 어둡게 "구워진" 이미지를 받아와
+    // 그걸 그린다(원본 이미지의 투명한 여백은 계속 투명하게 남음).
+    drawPart(partName, angle = 0, darknessAlpha = 0) {
         const img = this.images[partName];
         if (!img) return;
+        const spriteToDraw = darknessAlpha > 0 ? getDarkenedSprite(img, darknessAlpha) : img;
 
         const p = this.parts[partName];
         const pivotX = this.x + (p.offset.x + p.pivot.x) * this.scale;
@@ -106,19 +113,23 @@ class Dino {
         this.ctx.save();
         this.ctx.translate(pivotX, pivotY);
         this.ctx.rotate(angle * Math.PI / 180);
-        this.ctx.drawImage(img, -(p.pivot.x * this.scale), -(p.pivot.y * this.scale), img.width * this.scale, img.height * this.scale);
+        const dx = -(p.pivot.x * this.scale);
+        const dy = -(p.pivot.y * this.scale);
+        const dw = img.width * this.scale;
+        const dh = img.height * this.scale;
+        this.ctx.drawImage(spriteToDraw, dx, dy, dw, dh);
         this.ctx.restore();
     }
 
-    draw() {
+    draw(darknessAlpha = 0) {
         this.ctx.save();
 
-        this.drawPart('L_Leg', this.legAngle);
-        this.drawPart('L_Arm', this.legAngle * 0.5);
-        this.drawPart('Body');
-        this.drawPart('Belly');
-        this.drawPart('R_Arm', -this.legAngle * 0.5);
-        this.drawPart('R_Leg', -this.legAngle);
+        this.drawPart('L_Leg', this.legAngle, darknessAlpha);
+        this.drawPart('L_Arm', this.legAngle * 0.5, darknessAlpha);
+        this.drawPart('Body', 0, darknessAlpha);
+        this.drawPart('Belly', 0, darknessAlpha);
+        this.drawPart('R_Arm', -this.legAngle * 0.5, darknessAlpha);
+        this.drawPart('R_Leg', -this.legAngle, darknessAlpha);
 
         // [수정] 예전처럼 setTransform(1,0,0,1,0,0)으로 강제 초기화하지 않음.
         // drawPart가 이제 save/restore로 자기 변환을 알아서 정리하기 때문에,

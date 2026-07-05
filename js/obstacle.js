@@ -104,7 +104,12 @@ class Obstacle {
         }
     }
 
-    draw() {
+    // [수정] darknessAlpha(기본 0): 밤에 장애물을 살짝 어둡게 하기 위한 값(배경보다는 약하게,
+    // background.js의 getDarknessAlpha(1.0) 결과). 처음엔 그린 이미지 위에 반투명 검은
+    // 사각형을 그냥 덧칠했는데, 이미지의 투명한 여백까지 네모나게 어두워져 마치 히트박스
+    // 표시처럼 보이는 문제가 있었다. 대신 background.js의 getDarkenedSprite()로 실루엣
+    // 그대로 어둡게 "구워진" 이미지를 받아와 그걸 그린다(원본의 투명한 여백은 계속 투명).
+    draw(darknessAlpha = 0) {
         if (!this.image) return;
 
         if (this.width === 0 && this.image.width > 0) {
@@ -118,7 +123,8 @@ class Obstacle {
         const renderY = this.y - this.height + this.yOffset;
 
         // 원본 이미지 그리기
-        this.ctx.drawImage(this.image, renderX, renderY, this.width, this.height);
+        const spriteToDraw = darknessAlpha > 0 ? getDarkenedSprite(this.image, darknessAlpha) : this.image;
+        this.ctx.drawImage(spriteToDraw, renderX, renderY, this.width, this.height);
 
         // --- 변경된 충돌 전용 히트박스 시각화 (빨간색 사각형) ---
         // [수정] 디버그용 히트박스가 항상 켜져 있던 문제 -> gameConfig.debugHitbox일 때만 표시

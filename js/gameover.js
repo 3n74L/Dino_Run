@@ -57,13 +57,15 @@ function drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor = 
     background.draw();
 
     // [핵심 버그 수정]
-    // 기존에는 여기서 밤/밝기 필터를 전혀 설정하지 않아서, 배경만 어두워지고
-    // 장애물/공룡은 이전 프레임에 남아있던 필터 상태(대부분 'none')로 그려졌습니다.
-    // background.getFilterString()을 호출해 게임 진행 중과 완전히 동일한 밝기 필터를
+    // 기존에는 여기서 밤/밝기 처리를 전혀 안 해서, 배경만 어두워지고 장애물/공룡은
+    // 이전 프레임에 남아있던 필터 상태(대부분 'none')로 그려졌습니다.
+    // background.getDarknessAlpha()로 게임 진행 중과 완전히 동일한 어둠 정도를 계산해
     // 장애물과 공룡에도 적용합니다. (약한 강도(1.0)는 main.js의 게임 루프와 동일하게 맞춤)
-    ctx.filter = background.getFilterString(1.0);
+    // [수정] ctx.filter='brightness(...)' 대신 각 draw()가 반투명 검은 사각형을 덧칠하는
+    // 방식으로 바뀌어서(성능 최적화, SETTINGS.md 참고), 여기서 필터를 켜고 끌 필요가 없어짐.
+    const darknessAlpha = background.getDarknessAlpha(1.0);
 
-    obstacles.forEach(obs => obs.draw());
+    obstacles.forEach(obs => obs.draw(darknessAlpha));
 
     // 1단계: 닿는 순간 그 좌표 그대로 정지 (150ms 동안 멈춤)
     if (diePhase === 'hitDelay') {
@@ -79,7 +81,7 @@ function drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor = 
         dino.x = dinoDieX;
         dino.y = dinoDieY;
         dino.bounce = 0;
-        dino.draw();
+        dino.draw(darknessAlpha);
         dino.x = originalX;
         dino.y = originalY;
         dino.bounce = originalBounce;
@@ -119,7 +121,7 @@ function drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor = 
         dino.x = dinoDieX;
         dino.y = dinoDieY;
         dino.bounce = 0;
-        dino.draw();
+        dino.draw(darknessAlpha);
 
         dino.x = originalX;
         dino.y = originalY;
@@ -141,10 +143,6 @@ function drawGameOverSequence(ctx, canvas, background, obstacles, deltaFactor = 
             ctx.drawImage(cemeteryImg, renderX, renderY, dw, dh);
         }
     }
-
-    // [수정] 이 함수 안에서 켠 필터는 반드시 여기서 끝에 다시 꺼줘야
-    // 다음 프레임(혹은 오버레이 UI 등)에 의도치 않게 영향이 남지 않습니다.
-    ctx.filter = 'none';
 }
 
 // 신규 추가: 새로고침 없이 상태를 리셋하는 함수

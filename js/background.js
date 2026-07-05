@@ -1,3 +1,36 @@
+// [신규] 밤에 장애물/공룡을 어둡게 하기 위해 매 프레임 이미지 위에 반투명 사각형을 그냥
+// 덧칠하면, 이미지 자체의 투명한 여백(특히 공룡 팔다리는 회전을 위해 캔버스 여백이 넉넉함)
+// 까지 네모나게 어두워져서 마치 히트박스 표시처럼 보이는 문제가 있었다. 그 대신 이미지를
+// 오프스크린 캔버스에서 딱 한 번 어둡게 "구워서" 캐시해두고, 이후로는 그 결과물을 평범하게
+// drawImage하기만 한다. source-atop 합성은 원본 이미지의 알파(투명한 부분)를 그대로
+// 존중하므로 실루엣 모양 그대로만 어두워지고 여백은 계속 투명하게 남는다.
+// 어둠 정도는 하루 주기 동안 연속적으로 변하므로, 완전히 같은 값이 아니어도 캐시를 재사용할
+// 수 있도록 일정 간격(DARKEN_BUCKET)으로 반올림해서 키를 만든다 - 매 프레임 새로 "굽지"
+// 않고 어둠 단계가 실제로 눈에 띄게 바뀔 때만 새로 계산한다.
+const DARKEN_BUCKET = 0.02;
+const darkenedSpriteCache = new Map();
+
+function getDarkenedSprite(img, darknessAlpha) {
+    if (!img || darknessAlpha <= 0) return img;
+    const bucket = Math.round(darknessAlpha / DARKEN_BUCKET) * DARKEN_BUCKET;
+    const key = img.src + '|' + bucket.toFixed(2);
+
+    const cached = darkenedSpriteCache.get(key);
+    if (cached) return cached;
+
+    const off = document.createElement('canvas');
+    off.width = img.width;
+    off.height = img.height;
+    const octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0);
+    octx.globalCompositeOperation = 'source-atop';
+    octx.fillStyle = `rgba(0, 0, 0, ${bucket})`;
+    octx.fillRect(0, 0, img.width, img.height);
+
+    darkenedSpriteCache.set(key, off);
+    return off;
+}
+
 class Background {
     constructor(canvas) {
         this.canvas = canvas;
@@ -202,26 +235,30 @@ class Background {
         this.darkness = ((this.dayRGB.r - this.currentRGB.r) / (this.dayRGB.r - this.nightRGB.r || 1)) * 0.40;
     }
 
-    // [핵심 수정] 어둠 필터 계산을 이 함수 하나로 통합.
+    // [핵심 수정] 어둠 정도 계산을 이 함수 하나로 통합.
     // background.js 내부, main.js, gameover.js가 전부 이 함수만 호출하도록 해서
-    // "필터 계산이 두 곳에 따로 있어서 한쪽만 적용되는" 문제(게임오버 필터 버그)의 재발을 원천 차단.
-    // [수정] intensityMultiplier를 인자로 받도록 확장. 배경 레이어는 기존과 동일하게 1.5(기본값)를
-    // 쓰고, 공룡/장애물은 달만 원본 색을 유지하는 것과 비슷하게 밤에도 시야가 덜 어두워야 해서
-    // main.js/gameover.js에서 더 약한 값(1.0)으로 호출한다. 계산 공식 자체는 한 곳(이 함수)에만
-    // 있으므로 "필터 계산이 여러 곳에 흩어지는" 문제는 여전히 생기지 않는다.
-    getFilterString(intensityMultiplier = 1.5) {
-        if (this.darkness <= 0.01) return 'none';
+    // "어둠 계산이 여러 곳에 따로 있어서 한쪽만 적용되는" 문제(예전의 게임오버 필터 버그)의
+    // 재발을 원천 차단.
+    // [수정] 원래는 ctx.filter = 'brightness(...)'로 어둡게 했는데, 캔버스 필터는 그 필터가
+    // 켜진 상태에서 그려지는 drawImage 하나하나마다 비용이 커서(배경 레이어 6번 + 장애물 N번
+    // + 공룡 파츠 6번, 한 프레임에 10~20번), 밤이 되는 순간 프레임 드랍이 심해지는 원인이
+    // 됐다. 특히 baseSpeed가 오르면서 장애물이 팩(2~3개)으로 자주 나올수록 그려야 할 이미지가
+    // 늘어나 후반부 밤에 더 심해졌다.
+    // brightness(b) 필터는 각 채널값에 b를 곱하는 것과 같고, 이는 "검은색과 (1-b) 비율로
+    // 알파 블렌딩"하는 것과 수학적으로 동일하다(검은색은 0이라 원본*(1-alpha) = 원본*b가
+    // 되도록 alpha=1-b로 두면 결과가 같음). 그래서 필터 대신 반투명 검은 사각형을 그 위에
+    // 살짝 덧칠하는 방식(훨씬 저렴한 단순 알파 블렌딩)으로 바꿨다. 이 함수는 이제 그
+    // 알파값을 반환한다.
+    getDarknessAlpha(intensityMultiplier = 1.5) {
+        if (this.darkness <= 0.01) return 0;
         const brightness = Math.max(0.3, 1 - (this.darkness * intensityMultiplier));
-        return `brightness(${brightness})`;
+        return 1 - brightness;
     }
 
     draw() {
         this.ctx.fillStyle = `rgb(${Math.round(this.currentRGB.r)}, ${Math.round(this.currentRGB.g)}, ${Math.round(this.currentRGB.b)})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        this.drawCelestial();
-
-        this.ctx.filter = this.getFilterString();
         this.layers.forEach(l => {
             if (l.drawWidth === 0) return;
             this.ctx.drawImage(l.img, l.x, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
@@ -231,7 +268,18 @@ class Background {
             // 안전하게 방지한다.
             this.ctx.drawImage(l.img, l.x + l.drawWidth - 1, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
         });
-        this.ctx.filter = 'none';
+
+        // [수정] 배경 레이어만 어둡게(기본 강도 1.5). 반투명 검은 사각형을 레이어 위에
+        // 덧칠하는 것이라, 이 뒤에 그려지는 달/해(drawCelestial)는 자연히 영향을 받지
+        // 않고 항상 원본 밝기를 유지한다(순서를 바꿔서 달/해를 레이어보다 나중에 그림 -
+        // 이전에는 반대 순서였지만 화면상 겹치는 영역이 없어 시각적으로 차이 없음).
+        const bgDarknessAlpha = this.getDarknessAlpha(1.5);
+        if (bgDarknessAlpha > 0) {
+            this.ctx.fillStyle = `rgba(0, 0, 0, ${bgDarknessAlpha})`;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        this.drawCelestial();
     }
 
     // [핵심] main.js에서 달을 따로 그릴 수 있도록 좌표/이미지 정보 반환 메서드 추가
