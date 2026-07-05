@@ -353,6 +353,26 @@ function toggleSettings() {
     }
 }
 
+// [신규] 모바일 전체화면(가로) 전환. 전체화면 전환 자체(requestFullscreen)는 대부분의
+// 모바일 브라우저가 지원하지만, 화면 방향을 가로로 고정하는 screen.orientation.lock()은
+// 전체화면 상태에서만 허용되고 iOS Safari는 아예 지원하지 않는다. 그래서 lock을 못 해도
+// (iOS 등) 조용히 무시하고 전체화면 자체는 그대로 유지한다 - 이 경우 사용자가 기기를
+// 직접 가로로 돌리면 된다.
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        const request = document.documentElement.requestFullscreen();
+        if (request && typeof request.then === 'function') {
+            request.then(() => {
+                if (screen.orientation && typeof screen.orientation.lock === 'function') {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            }).catch(() => {});
+        }
+    } else {
+        document.exitFullscreen();
+    }
+}
+
 // 랭킹 패널 열기/닫기 (홈 화면 전용, 설정 패널과 완전히 대칭 구조).
 // 'ranking-open' 클래스만 토글하면 CSS(width 0 -> 30cqw, 우측 드로어)가 나머지를 처리하고,
 // homeContent가 flex:1이라 이 패널이 넓어지는 만큼 자동으로, 정확히 그만큼 왼쪽으로 밀려난다.

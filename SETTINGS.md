@@ -407,6 +407,18 @@ container-type: inline-size;`)로 감쌌습니다. `.game-container`는 이제 `
 > 해결했습니다. **앞으로 이 두 컨테이너 중 하나에 새 직계 자식을 추가한다면 `.ui-layer`
 > 클래스를 꼭 붙이세요** — 안 그러면 클릭이 씹히는 문제가 재발합니다.
 
+## 모바일 전체화면(가로) 전환 버튼 (신규)
+홈 화면 우측 하단에 `#fullscreenBtn`(`.corner-btn.fullscreen-btn`, "⛶" 글리프)을 추가했습니다.
+`toggleFullscreen()`(`main.js`)이 `document.documentElement.requestFullscreen()`으로 전체화면을
+켜고, 성공하면 `screen.orientation.lock('landscape')`로 가로 방향 고정을 시도합니다. 이미
+전체화면이면 `document.exitFullscreen()`으로 되돌립니다.
+
+| 항목 | 값 |
+|---|---|
+| 노출 조건 | `@media (pointer: coarse)`(터치 기기 = 대부분 모바일/태블릿)일 때만 `display:flex`, 그 외(데스크톱)엔 숨김 |
+| 위치 | `.corner-btn`(설정 버튼)과 같은 원형 스타일 재사용, `top`/`left` 대신 `bottom:3%; right:2%`로 우측 하단에 배치 |
+| 가로 고정 미지원 브라우저 | `screen.orientation.lock()`은 iOS Safari가 지원하지 않음 — 이 경우 전체화면은 켜지지만 가로 고정은 조용히 실패하고(`.catch(()=>{})`), 사용자가 기기를 직접 돌려야 함 |
+
 ## game-container 뷰포트 대응 (신규)
 `.game-container`의 크기를 CSS 단위(vw/vh/aspect-ratio) 계산에 맡기지 않고, `main.js`의
 `resizeGameContainer()`가 `window.innerWidth`/`innerHeight`를 기준으로 px 단위로 직접 계산해서

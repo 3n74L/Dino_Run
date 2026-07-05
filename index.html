@@ -25,6 +25,10 @@
                 <img src="assets/setting/Tribe_Info_Icon-Setting.png" class="btn-icon" alt="설정">
             </button>
 
+            <!-- [신규] 모바일 전체화면(가로) 전환 버튼. 모바일(터치 기기)에서만 보이고,
+                 데스크톱(마우스 환경)에서는 CSS로 숨겨진다(style.css의 @media (pointer: coarse)). -->
+            <button id="fullscreenBtn" class="corner-btn fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
+
             <!-- 랭킹 미리보기(우측 상단, 고정): 클릭하면 우측에서 전체 랭킹 패널이 슬라이드되어 나옴 -->
             <div id="rankingPreview" onclick="toggleRanking()">
                 <img src="assets/sprites/RankTitle.png" id="rankTitleImg" alt="랭킹">

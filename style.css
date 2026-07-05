@@ -507,6 +507,25 @@ img {
     transition: transform 0.35s ease;
 }
 
+/* [신규] 모바일 전체화면(가로) 전환 버튼. 설정 버튼(.corner-btn, 좌측 상단)과 같은 원형
+   버튼 스타일을 재사용하되, 위치만 우측 하단으로 옮긴다. 기본적으로는 숨겨두고, 터치
+   기기(마우스가 아니라 손가락으로 조작하는 환경 = 대부분 모바일/태블릿)에서만 보이도록
+   pointer:coarse 미디어 쿼리로 노출한다 — 데스크톱에서는 이미 창을 자유롭게 조절할 수
+   있어서 이 버튼이 굳이 필요 없다. */
+.fullscreen-btn {
+    top: auto;
+    left: auto;
+    bottom: 3%;
+    right: 2%;
+    display: none;
+}
+
+@media (pointer: coarse) {
+    .fullscreen-btn {
+        display: flex;
+    }
+}
+
 /* 닉네임 입력칸 + 플레이 버튼을 한 줄에 배치 */
 .home-controls {
     display: flex;
