@@ -5,6 +5,19 @@
     <!-- [수정] 모바일 터치 이벤트를 이미 구현했는데 viewport 태그가 없어서
          모바일 브라우저가 데스크톱 레이아웃(약 980px)으로 축소 렌더링하는 문제 수정 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- [신규] 카카오톡/디스코드/트위터 등에 이 사이트 링크를 공유했을 때 뜨는 미리보기용
+         대표 이미지/제목/설명. og:image와 twitter:image의 값(아래 "여기에 이미지 경로")만
+         원하는 이미지 경로로 바꾸면 됨. 상대 경로가 아니라 반드시 절대 URL이어야 함
+         (예: https://3n74l.github.io/Dino_Run/assets/sprites/원하는파일.png) -->
+    <meta property="og:title" content="다이노 런">
+    <meta property="og:description" content="다이노뮤턴트 팬메이드 공룡 러너 게임">
+    <meta property="og:image" content="https://3n74l.github.io/Dino_Run/assets/setting/Emoji_019.png">
+    <meta property="og:url" content="https://3n74l.github.io/Dino_Run/">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://3n74l.github.io/Dino_Run/assets/setting/Emoji_019.png">
+
     <link rel="stylesheet" href="style.css">
     <title>[다이노뮤턴트]다이노 런</title>
 </head>

@@ -330,9 +330,12 @@ img {
 }
 
 /* cqw 기준 고정폭: 부모(#settingsPanel)의 width가 0->30cqw로 애니메이션되는 동안
-   이 내부 콘텐츠는 이미 30cqw 크기를 유지하고 있어서 찌그러지지 않고 "드러나는" 느낌을 준다. */
+   이 내부 콘텐츠는 이미 30cqw 크기를 유지하고 있어서 찌그러지지 않고 "드러나는" 느낌을 준다.
+   [수정] 정작 flex-shrink:0이 빠져 있어서 이 주석의 의도가 실제로 보장되지 않고 있었다
+   (랭킹 패널에서 같은 원인으로 스크롤바가 깜빡이는 버그가 발견되어 여기도 같이 고침). */
 .settings-panel-content {
     width: 30cqw;
+    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -648,8 +651,15 @@ img {
     width: 30cqw;
 }
 
+/* [수정] flex-shrink:0이 빠져 있어서, 부모(#rankingPanel)의 width가 0->30cqw로 애니메이션
+   되는 동안 기본 flex-shrink(1) 때문에 이 요소가 부모의 "현재" 너비에 맞춰 같이 줄어들고
+   있었다. 그 결과 내부의 #rankingListScroll 목록 글자가 일시적으로 줄바꿈되면서 콘텐츠
+   높이가 늘어나 스크롤바가 잠깐 나타났다가, 애니메이션이 끝나 원래 너비로 돌아오면 다시
+   사라지는 현상이 있었다. flex-shrink:0으로 처음부터 30cqw를 유지시켜서(부모가 넓어지는
+   만큼 그냥 "드러나기만" 하도록) 해결. */
 .ranking-panel-content {
     width: 30cqw;
+    flex-shrink: 0;
     height: 80%;
     display: flex;
     flex-direction: column;
