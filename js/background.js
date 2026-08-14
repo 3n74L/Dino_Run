@@ -35,6 +35,22 @@ function getDarkenedSprite(img, darknessAlpha) {
     return off;
 }
 
+// [신규] 어둠 버킷이 바뀌는 순간(밤이 되는 동안 드물게 발생), 그 프레임에 화면에 있는
+// 모든 스프라이트(장애물 여러 개 + 공룡 파츠 6개)가 거의 동시에 같은 새 버킷을 만나서
+// 한꺼번에 "새로 구워지는" 상황이 생길 수 있다. 이게 한 프레임에 몰리면 짧은 끊김(약
+// 0.05초)으로 체감된다. 로딩이 끝난 시점에 있을 수 있는 모든 어둠 버킷을 미리 다 구워서
+// 캐시를 채워두면, 실제 플레이 중에는 항상 캐시 적중만 일어나서 이 끊김이 아예 사라진다.
+// (매개변수 images: Image 객체들의 평평한 배열)
+const MAX_DARKEN_ALPHA_TO_PREWARM = 0.5; // 실제 최대치(intensity 1.0 기준 약 0.4)보다 여유 있게
+function warmDarkenedSpriteCache(images) {
+    images.forEach(img => {
+        if (!img || !img.complete || img.width === 0) return;
+        for (let alpha = DARKEN_BUCKET; alpha <= MAX_DARKEN_ALPHA_TO_PREWARM; alpha += DARKEN_BUCKET) {
+            getDarkenedSprite(img, alpha);
+        }
+    });
+}
+
 class Background {
     constructor(canvas) {
         this.canvas = canvas;
@@ -277,7 +293,14 @@ class Background {
             // 것이라 육안으로는 차이가 없지만, x가 소수점 좌표일 때 캔버스가 두 drawImage
             // 호출을 각각 다른 정수 픽셀로 반올림하면서 생길 수 있는 미세한 서브픽셀 틈을
             // 안전하게 방지한다.
-            this.ctx.drawImage(l.img, l.x + l.drawWidth - 1, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
+            // [수정] 이 두 번째 타일은 첫 번째 타일이 화면을 다 못 채우는 구간(스크롤 주기의
+            // 일부)에서만 실제로 보인다. 아직 화면 안에 들어오지도 않았는데 매 프레임 무조건
+            // 그리고 있던 걸(성능 낭비) 실제로 보일 때만 그리도록 조건을 추가함 - 결과는
+            // 100% 동일, 화면 밖 drawImage 호출만 생략됨.
+            const secondTileX = l.x + l.drawWidth - 1;
+            if (secondTileX < this.canvas.width) {
+                this.ctx.drawImage(l.img, secondTileX, l.yOffset, l.drawWidth, this.canvas.height * l.scale);
+            }
         });
 
         // [수정] 배경 레이어만 어둡게(기본 강도 1.5). 반투명 검은 사각형을 레이어 위에

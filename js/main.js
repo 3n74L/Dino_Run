@@ -4,7 +4,10 @@ const ctx = canvas.getContext('2d');
 canvas.width = 1200;
 canvas.height = 675;
 ctx.imageSmoothingEnabled = true;
-ctx.imageSmoothingQuality = 'high';
+// [수정] 'high'는 모든 drawImage 호출(배경 레이어, 장애물, 공룡 파츠 6개, 해/달)마다
+// 픽셀당 연산량이 상당히 늘어나는 옵션이라, 저사양/모바일 기기에서 프레임 드랍의 주요
+// 원인 중 하나였다. 'medium'으로 낮춰서 체감 화질은 대부분 유지하면서 연산량을 줄임.
+ctx.imageSmoothingQuality = 'medium';
 
 // [수정] 4K 등 초고해상도 모니터에서 브라우저를 전체화면으로 켰을 때, CSS의 %/vw/vh +
 // aspect-ratio 조합만으로는 브라우저/OS 배율(디스플레이 확대)에 따라 컨테이너 크기가
@@ -256,22 +259,56 @@ function handleInputRelease() {
     isInputActive = false;
 }
 
+// [신규] 일시정지 해제("계속하기") 시, 어둡게 깔린 배경 + 아이콘들(#pauseOverlay)이
+// 그 자리에서 즉시 사라지는 대신 2초에 걸쳐 서서히 사라지고, **그게 완전히 다 사라진
+// 뒤에야** 게임이 다시 움직이기 시작한다(이 2초 동안은 isPaused가 계속 true라서 장애물도
+// 안 움직이고 충돌도 없음 - 완전히 멈춰있는 상태). 일시정지를 "화면 멈춰놓고 장애물 배치를
+// 관찰한 뒤 바로 반응하기"로 악용하지 못하게, "계속하기"를 눌러도 실제로 게임이 재개되기까지
+// 실제 2초가 걸리도록 강제하는 현실 시간 패널티다.
+const RESUME_TRANSITION_MS = 2000;
+let resumeFadeTimeout = null;
+
+// 다른 경로(홈으로 가기, 재시작)로 상태가 초기화될 때 이 대기 중인 재개 타이머가 남아있으면
+// 안 된다 - 안 그러면 홈 화면에 있는데 뒤늦게 게임 루프가 다시 켜지는 등의 버그가 생긴다.
+function cancelResumeFade() {
+    if (resumeFadeTimeout) {
+        clearTimeout(resumeFadeTimeout);
+        resumeFadeTimeout = null;
+    }
+    const overlay = document.getElementById('pauseOverlay');
+    if (overlay) overlay.classList.remove('fading-out');
+}
+
 // 일시정지 기능 제어 함수
 function togglePause() {
     if (isGameOver) return;
 
-    isPaused = !isPaused;
     const overlay = document.getElementById('pauseOverlay');
 
-    if (isPaused) {
+    if (!isPaused) {
+        // 일시정지 시작: 기존과 동일하게 즉시 멈추고 오버레이를 보여준다.
+        isPaused = true;
+        cancelResumeFade(); // 혹시 이전 재개 타이머가 남아있다면 정리
         overlay.classList.remove('hidden');
-    } else {
+        return;
+    }
+
+    // 일시정지 해제 요청: isPaused를 여기서 바로 false로 바꾸지 않는다. 오버레이가
+    // 서서히 사라지는 2초 동안은 계속 true로 유지해서 게임이 실제로 멈춰있게 하고,
+    // 트랜지션이 끝나는 시점에야 재개한다. (연타 방지: 이미 페이드 중이면 무시)
+    if (resumeFadeTimeout) return;
+
+    overlay.classList.add('fading-out');
+    resumeFadeTimeout = setTimeout(() => {
+        resumeFadeTimeout = null;
         overlay.classList.add('hidden');
+        overlay.classList.remove('fading-out');
+        isPaused = false;
+        resetFrameTiming(); // 멈춰있던 시간이 델타타임에 몰아서 반영되지 않도록
         if (!isLoopRunning) {
-            resetFrameTiming(); // 일시정지 중 멈춰있던 시간이 델타타임에 몰아서 반영되지 않도록
             requestAnimationFrame(gameLoop);
         }
-    }
+    }, RESUME_TRANSITION_MS);
 }
 
 function restartGame() {
@@ -280,6 +317,7 @@ function restartGame() {
         clearTimeout(obstacleTimeout);
         obstacleTimeout = null;
     }
+    cancelResumeFade(); // 대기 중인 "일시정지 해제" 타이머가 있다면 정리(재시작 후 뒤늦게 발동 방지)
 
     // 2. 게임오버 및 일시정지 UI 숨기기
     const gameOverOverlay = document.getElementById('gameOverOverlay');
@@ -333,6 +371,7 @@ function goHome() {
         clearTimeout(obstacleTimeout);
         obstacleTimeout = null;
     }
+    cancelResumeFade(); // 대기 중인 "일시정지 해제" 타이머가 있다면 정리(홈으로 간 뒤 뒤늦게 발동 방지)
 
     // 1. 인게임 UI 오버레이 은닉 및 상태 리셋
     if (typeof resetGameOverState === 'function') resetGameOverState();
@@ -551,6 +590,49 @@ Object.keys(dinoParts).forEach(name => {
 let dino = null;
 let obstacles = [];
 
+// [신규] 공룡은 착지해야만("isJumping" false) 다시 점프할 수 있다. 그래서 어떤 장애물이든
+// 생성 간격(nextSpawnTime, setTimeout에 넘기는 실제 ms)이 "점프해서 다시 착지하기까지
+// 걸리는 시간"보다 짧거나 같으면, 앞 장애물을 넘느라 아직 착지도 못 했는데 다음 장애물을
+// 또 넘어야 하는 상황이 생겨서 물리적으로 회피가 불가능하다. dino.js의 실제 튜닝된 물리
+// 상수(gravity/jumpStrength/각 구간 중력 배율)를 그대로 240fps 기준 프레임 단위로
+// 시뮬레이션해서, 점프~착지에 걸리는 실제 시간(ms)을 한 번만 계산해둔다(값이 바뀌면
+// dino.js만 고치면 되고, 여기 숫자를 따로 하드코딩해서 어긋날 일이 없음).
+let cachedJumpCycleMs = null;
+function simulateJumpCycleMs(d) {
+    let vy = d.jumpStrength;
+    let y = 0; // 점프 시작점 기준 상대 높이(0 = 지면)
+    let frames = 0;
+    const MAX_FRAMES = 100000; // 무한루프 안전장치
+    while (frames < MAX_FRAMES) {
+        let gravity;
+        if (Math.abs(vy) < d.apexVelocityThreshold) {
+            gravity = d.gravity * d.apexGravityMultiplier;
+        } else if (vy < 0) {
+            gravity = d.gravity * d.riseGravityMultiplier;
+        } else {
+            gravity = d.gravity * d.fallGravityMultiplier;
+        }
+        vy += gravity; // 240fps 기준 한 스텝(=dino.js의 update()가 deltaFactor=1일 때와 동일)
+        y += vy;
+        frames++;
+        if (y >= 0) break;
+    }
+    return (frames / 240) * 1000; // 기준 프레임 수 -> 실제 ms
+}
+function getJumpCycleMs() {
+    if (cachedJumpCycleMs === null && dino) {
+        cachedJumpCycleMs = simulateJumpCycleMs(dino);
+    }
+    return cachedJumpCycleMs || 0;
+}
+
+// "아주 약간의 시간적 여유" - 점프~착지 시간과 정확히 같기만 해도 타이밍이 빡빡해서, 조금
+// 여유를 더한다.
+const JUMP_SAFETY_BUFFER_MS = 150;
+// obstacle.js의 프테라노돈 speedOffset 최대 편차(0.1~0.3)와 맞춰야 한다. 그쪽 값을 바꾸면
+// 이 값도 같이 바꿀 것.
+const AIR_WORST_CASE_SLOWDOWN = 0.3;
+
 // 4. 장애물 생성 함수
 function spawnObstacle() {
     if (isGameOver) return;
@@ -599,7 +681,20 @@ function spawnObstacle() {
     // 장애물 개수에 따른 안전거리 보정
     const packBonus = (count - 1) * 250;
     const safetyDistance = Math.max(700, 1100 - (speed * 40)) + packBonus;
-    const nextSpawnTime = Math.max(900, safetyDistance / speed);
+    let nextSpawnTime = Math.max(900, safetyDistance / speed);
+
+    // [신규] 다음 장애물까지의 실제 시간 간격이 "점프~착지" 시간보다 짧으면 절대 피할 수
+    // 없으므로 최소 간격을 보장한다. 이번 웨이브가 공중이면, 그 프테라노돈이 최악의 경우
+    // (가장 느린 속도, speedOffset 최대 -0.3)로 화면을 가로지를 때를 기준으로 필요 간격을
+    // 넉넉하게 늘려 잡는다(느리게 움직일수록 위협 구간에 더 오래 머무르므로).
+    let minSafeGapMs = getJumpCycleMs() + JUMP_SAFETY_BUFFER_MS;
+    if (isAirborne) {
+        const worstCaseAirSpeed = Math.max(0.5, speed - AIR_WORST_CASE_SLOWDOWN);
+        minSafeGapMs *= speed / worstCaseAirSpeed;
+    }
+    if (nextSpawnTime < minSafeGapMs) {
+        nextSpawnTime = minSafeGapMs;
+    }
 
     obstacleTimeout = setTimeout(spawnObstacle, nextSpawnTime + Math.random() * 300);
 }
@@ -642,6 +737,18 @@ const checkLoad = setInterval(() => {
             console.error("[Loading] 일부 에셋이 시간 내에 로드되지 않았습니다. 콘솔의 개별 경고를 확인하세요. 게임은 계속 진행됩니다.");
         }
         dino = new Dino(ctx, dinoParts);
+
+        // [신규] 밤 어둠 처리용 캐시(getDarkenedSprite)를 플레이 시작 전에 미리 다 구워둔다.
+        // 안 그러면 실제 플레이 중 어둠 버킷이 바뀌는 순간, 화면에 있는 장애물+공룡 파츠가
+        // 한꺼번에 새로 구워지면서 짧은 끊김(약 0.05초)이 생길 수 있다.
+        if (typeof warmDarkenedSpriteCache === 'function') {
+            const allSprites = [
+                ...Object.values(dinoParts),
+                ...Object.values(spriteCache).flat()
+            ];
+            warmDarkenedSpriteCache(allSprites);
+        }
+
         assetsReady = true;
         console.log("로딩 완료: 홈 화면 대기");
 
@@ -719,20 +826,36 @@ function gameLoop(timestamp) {
     // 같은 결과를 보장함.
     const fgDarknessAlpha = background.getDarknessAlpha(1.0);
 
-    obstacles = obstacles.filter(obs => {
+    // [수정] Array.filter()는 호출할 때마다 새 배열을 할당한다. 매 프레임 새 배열(+콜백
+    // 클로저)을 만들면 가비지가 계속 쌓이고, 가비지 컬렉터가 개입하는 순간 프레임이 순간적
+    // 으로 끊긴다 - 램이 부족한 모바일 기기에서 "중간중간에" 렉이 걸리는 체감과 잘 맞는
+    // 원인이었다. 새 배열을 만드는 대신 같은 배열 안에서 살아남을 장애물만 앞으로 채워
+    // 넣고 마지막에 length만 잘라내는 방식(제자리 압축)으로 바꿔서, 이 배열을 매 프레임
+    // 새로 할당하지 않는다. 동작(로직)은 기존과 동일하다.
+    let writeIndex = 0;
+    for (let i = 0; i < obstacles.length; i++) {
+        const obs = obstacles[i];
+
         // [수정] 한 프레임에서 이미 충돌/게임오버가 확정되면 나머지 장애물은 더 이상
         // 갱신/충돌판정하지 않음 (죽는 순간 이후에도 장애물이 계속 움직이거나
         // gameOver()가 여러 번 중복 호출되던 문제 방지)
-        if (isGameOver) return true;
+        if (isGameOver) {
+            obstacles[writeIndex++] = obs;
+            continue;
+        }
 
         obs.update(deltaFactor);
         obs.draw(fgDarknessAlpha);
         if (dino && checkCollision(dino, obs)) {
             gameOver();
-            return true;
+            obstacles[writeIndex++] = obs;
+            continue;
         }
-        return obs.x + obs.width > 0;
-    });
+        if (obs.x + obs.width > 0) {
+            obstacles[writeIndex++] = obs;
+        }
+    }
+    obstacles.length = writeIndex;
 
     if (dino) dino.draw(fgDarknessAlpha);
 
