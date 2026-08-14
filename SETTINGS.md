@@ -7,7 +7,7 @@ AI(제미나이/클로드 등)와 새로운 채팅을 시작할 때 이 파일�
 | 항목 | 값 | 위치 |
 |---|---|---|
 | 캔버스 크기 | 1200 x 675 (16:9) | `main.js` 상단 |
-| 시작 속도(baseSpeed) | 2 | `window.gameConfig` |
+| 시작 속도(baseSpeed, 수정) | 3 (`INITIAL_BASE_SPEED`, 기존 2의 1.5배) | `window.gameConfig`, `main.js` 상단 |
 | 최고 속도(maxSpeed) | 12 | `window.gameConfig` |
 | 속도 증가율 | 프레임당 +0.0004 | `gameLoop()` |
 | 바닥 Y좌표(groundY) | 560 | `window.gameConfig` |
@@ -15,6 +15,12 @@ AI(제미나이/클로드 등)와 새로운 채팅을 시작할 때 이 파일�
 | 로딩 타임아웃(신규) | 10000ms | `main.js` |
 | 점수 환산(신규) | 10px 이동 = 1M | `main.js`의 `METERS_PER_PIXEL` |
 | 최고 기록 저장 위치(신규) | `localStorage['dinoRunBestScore']` | `main.js`의 `BEST_SCORE_STORAGE_KEY` |
+
+> ⚠️ **시작 속도 1.5배 인상(수정)**: 초반(baseSpeed가 낮을 때) 장애물 이동 속도가 공룡 점프
+> 타이밍과 안 맞아서 점프 타이밍을 잡기 어렵다는 사용자 피드백으로, 시작 속도를 `2` →
+> `INITIAL_BASE_SPEED = 3`으로 올렸습니다. `restartGame()`/`goHome()`/`reallyStartGame()`
+> 전부 이 상수 하나만 참조하도록 통일했습니다(매직 넘버 `2`를 여러 곳에 중복 하드코딩하지
+> 않음). 속도 증가율(프레임당 +0.0004)과 최고 속도(12)는 그대로입니다.
 
 > ⚠️ **시행착오 기록(1차: 롤백됨, 2차: 재도입해서 유지 중)**: 한때 프레임레이트 독립적 물리
 > (델타타임)를 도입해서 `gameLoop(timestamp)`가 실제 경과시간을 `deltaFactor`로 정규화해
@@ -398,6 +404,17 @@ Edge Function 두 개만** 할 수 있습니다:
 > opacity: 0; }`를 추가해 패널이 열리는 것과 같은 속도(0.35s)로 작아지며 사라지도록 했습니다.
 > 1위 강조는 `#leaderboardList li:first-child`, `#rankingFullList li:first-child` CSS
 > 선택자로 처리합니다(목록이 항상 점수 내림차순으로 새로 그려지므로 첫 항목=1위).
+
+### 바깥 클릭 시 패널 닫기 (신규, 설정/랭킹 공통)
+`main.js`에 `document`의 전역 `click` 리스너를 하나 추가해서, 설정(`settings-open`)/랭킹
+(`ranking-open`) 패널이 열려 있을 때 각 패널(`#settingsPanel`/`#rankingPanel`) **바깥**을
+클릭하면 자동으로 닫히게 했습니다. 여닫이 버튼(`#homeSettingsBtn`, `#rankingPreview`)
+자신은 반드시 제외해야 합니다 — 안 그러면 그 버튼의 `onclick`(target 단계에서 먼저 실행되어
+패널을 방금 염)이 끝난 직후, 이 리스너가 버블링 단계에서 "패널 밖 클릭"으로 오인해 같은
+클릭에 바로 다시 닫아버립니다. 두 패널은 서로 독립적으로 검사하므로, 한쪽이 열린 채로
+반대쪽 여닫이 버튼을 클릭하면(예: 설정이 열린 상태에서 랭킹 버튼 클릭) 설정은 "바깥 클릭"으로
+닫히고 랭킹은 그 버튼 자신의 토글 로직으로 열리는, 자연스럽게 "한 번에 하나만 열림" 동작이
+됩니다.
 
 ### 물리 상수와 서버 검증값이 어긋나지 않게 주의
 `submit-score/index.ts`의 `MAX_METERS_PER_SEC`는 `window.gameConfig.maxSpeed`와

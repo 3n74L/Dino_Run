@@ -130,8 +130,13 @@ function onHomePanelTransitionEnd() {
 if (settingsPanelEl) settingsPanelEl.addEventListener('transitionend', onHomePanelTransitionEnd);
 if (rankingPanelEl) rankingPanelEl.addEventListener('transitionend', onHomePanelTransitionEnd);
 
+// [수정] 초반(baseSpeed가 낮을 때) 장애물 이동 속도가 공룡 점프 타이밍과 안 맞아서 점프
+// 타이밍을 잡기 어렵다는 피드백으로, 시작 속도를 기존(2)의 1.5배로 올림. 이 값 하나만
+// 바뀌고, 속도가 오르는 방식(프레임당 +0.0004)이나 최고 속도(12)는 그대로 유지된다.
+const INITIAL_BASE_SPEED = 3; // 2 * 1.5
+
 window.gameConfig = {
-    baseSpeed: 2,
+    baseSpeed: INITIAL_BASE_SPEED,
     maxSpeed: 12,
     groundY: 560,
     debugHitbox: false // [수정] 디버그용 빨간 히트박스가 항상 그려지던 문제 -> 기본값 off로 변경
@@ -293,7 +298,7 @@ function restartGame() {
     jumpBufferTime = 0;
 
     // 4. 인게임 핵심 데이터 초기화
-    window.gameConfig.baseSpeed = 2; // 초기 속도로 리셋
+    window.gameConfig.baseSpeed = INITIAL_BASE_SPEED; // 초기 속도로 리셋
     obstacles = []; // 기존 장애물 전부 제거
     currentScore = 0;
     updateScoreUI();
@@ -335,7 +340,7 @@ function goHome() {
     isInputActive = false;
     isLoopRunning = false; // 홈으로 갈 때 루프 작동 플래그 OFF
     obstacles = [];
-    window.gameConfig.baseSpeed = 2;
+    window.gameConfig.baseSpeed = INITIAL_BASE_SPEED;
     currentScore = 0;
     updateScoreUI();
 
@@ -479,6 +484,31 @@ function toggleRanking() {
         openRanking();
     }
 }
+
+// [신규] 설정/랭킹 패널이 열려 있을 때 패널 바깥(그리고 각자의 여닫이 버튼도 아닌 곳)을
+// 클릭하면 자동으로 닫히게 한다. 여닫이 버튼(#homeSettingsBtn, #rankingPreview) 자신은
+// 제외해야 하는데, 안 그러면 그 버튼의 onclick(toggleSettings/toggleRanking)이 방금 열어놓은
+// 걸 이 리스너가 버블링 단계에서 "바깥 클릭"으로 오인해 같은 클릭에 바로 다시 닫아버린다.
+document.addEventListener('click', (e) => {
+    const homeScreen = document.getElementById('homeScreen');
+    if (!homeScreen) return;
+
+    if (homeScreen.classList.contains('settings-open')) {
+        const settingsPanel = document.getElementById('settingsPanel');
+        const settingsBtn = document.getElementById('homeSettingsBtn');
+        if (settingsPanel && !settingsPanel.contains(e.target) && settingsBtn && !settingsBtn.contains(e.target)) {
+            closeSettings();
+        }
+    }
+
+    if (homeScreen.classList.contains('ranking-open')) {
+        const rankingPanel = document.getElementById('rankingPanel');
+        const rankingBtn = document.getElementById('rankingPreview');
+        if (rankingPanel && !rankingPanel.contains(e.target) && rankingBtn && !rankingBtn.contains(e.target)) {
+            closeRanking();
+        }
+    }
+});
 
 // 3. 캐싱 시스템
 const spriteCache = {};
@@ -742,7 +772,7 @@ function reallyStartGame() {
     if (typeof resetGameOverState === 'function') resetGameOverState();
     isPaused = false;
     isInputActive = false;
-    window.gameConfig.baseSpeed = 2;
+    window.gameConfig.baseSpeed = INITIAL_BASE_SPEED;
     obstacles = [];
     currentScore = 0;
     updateScoreUI();
