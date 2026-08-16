@@ -36,7 +36,7 @@
              늘어나는 만큼 homeContent가 자동으로, 정확히 그만큼 오른쪽으로 밀려남. -->
         <div id="homeScreen" class="ui-layer">
             <button id="homeSettingsBtn" class="corner-btn" onclick="toggleSettings()">
-                <img src="assets/setting/Tribe_Info_Icon-Setting.png" class="btn-icon" alt="설정">
+                <img src="assets/setting/Tribe_Info_Icon-Setting.png" class="btn-icon" alt="설정" data-i18n-alt="settingsAlt">
             </button>
 
             <!-- [신규] 모바일 전체화면(가로) 전환 버튼. 모바일(터치 기기)에서만 보이고,
@@ -45,16 +45,16 @@
 
             <!-- 랭킹 미리보기(우측 상단, 고정): 클릭하면 우측에서 전체 랭킹 패널이 슬라이드되어 나옴 -->
             <div id="rankingPreview" onclick="toggleRanking()">
-                <img src="assets/sprites/RankTitle.png" id="rankTitleImg" alt="랭킹">
+                <img src="assets/sprites/RankTitle.png" id="rankTitleImg" alt="랭킹" data-i18n-alt="rankingAlt">
                 <ol id="leaderboardList"></ol>
             </div>
 
             <div id="settingsPanel">
                 <div class="settings-panel-content">
-                    <h2 class="settings-title">설정</h2>
+                    <h2 class="settings-title" data-i18n="settingsTitle">설정</h2>
 
                     <div class="setting-row">
-                        <span class="setting-label">배경음악</span>
+                        <span class="setting-label" data-i18n="labelMusic">배경음악</span>
                         <button id="settingsMusicBtn" class="sound-btn on" onclick="toggleMusic()">
                             <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
                             <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
@@ -62,7 +62,7 @@
                     </div>
 
                     <div class="setting-row">
-                        <span class="setting-label">효과음</span>
+                        <span class="setting-label" data-i18n="labelSfx">효과음</span>
                         <button id="settingsSfxBtn" class="sound-btn on" onclick="toggleSfx()">
                             <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
                             <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
@@ -70,33 +70,33 @@
                     </div>
 
                     <div class="setting-row">
-                        <span class="setting-label">음량</span>
+                        <span class="setting-label" data-i18n="labelVolume">음량</span>
                         <input type="range" id="volumeSlider" min="0" max="100" value="100"
                                oninput="handleVolumeSliderInput(this.value)">
                     </div>
 
                     <div class="setting-row">
-                        <span class="setting-label">히트박스 표시</span>
+                        <span class="setting-label" data-i18n="labelHitbox">히트박스 표시</span>
                         <button id="settingsHitboxBtn" onclick="toggleHitbox()">OFF</button>
                     </div>
-                    <p class="settings-note">⚠ 히트박스를 켜면 랭킹에 등록되지 않습니다.</p>
+                    <p class="settings-note" data-i18n="hitboxNote">⚠ 히트박스를 켜면 랭킹에 등록되지 않습니다.</p>
 
                     <div class="setting-row">
-                        <span class="setting-label">반전 모드</span>
+                        <span class="setting-label" data-i18n="labelInvert">반전 모드</span>
                         <button id="settingsInvertBtn" onclick="toggleInvert()">OFF</button>
                     </div>
 
-                    <button id="closeSettingsBtn" onclick="closeSettings()">닫기</button>
+                    <button id="closeSettingsBtn" onclick="closeSettings()" data-i18n="closeBtn">닫기</button>
                 </div>
             </div>
 
             <div id="homeContent">
-                <h1 class="game-title">다이노 런</h1>
+                <h1 class="game-title" data-i18n="gameTitle">다이노 런</h1>
                 <div class="home-controls">
                     <span class="nickname-bg-wrap">
-                        <input id="nicknameInput" type="text" placeholder="닉네임" maxlength="8" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">
+                        <input id="nicknameInput" type="text" placeholder="닉네임" data-i18n-placeholder="nicknamePlaceholder" maxlength="8" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off">
                     </span>
-                    <button id="startBtn" onclick="startGameFromHome()">플레이 ▶</button>
+                    <button id="startBtn" onclick="startGameFromHome()" data-i18n="playBtn">플레이 ▶</button>
                 </div>
             </div>
 
@@ -105,17 +105,17 @@
                  이 패널이 넓어지는 만큼 자동으로 좁아짐). -->
             <div id="rankingPanel">
                 <div class="ranking-panel-content">
-                    <h2 class="ranking-title">랭킹</h2>
+                    <h2 class="ranking-title" data-i18n="rankingTitle">랭킹</h2>
                     <div id="rankingListScroll">
                         <ol id="rankingFullList"></ol>
                     </div>
                     <div id="myRankRow"></div>
-                    <button id="closeRankingBtn" onclick="closeRanking()">닫기</button>
+                    <button id="closeRankingBtn" onclick="closeRanking()" data-i18n="closeBtn">닫기</button>
                 </div>
             </div>
 
             <!-- 면책 조항: 사용된 그래픽 리소스가 모바일 게임에서 발췌됐음을 명시 -->
-            <p id="disclaimerText">
+            <p id="disclaimerText" data-i18n="disclaimer">
                 본 게임은 비상업적 팬메이드 프로젝트이며, 사용된 일부 그래픽 리소스는 모바일 게임에서
                 발췌되었고 저작권은 각 원저작자에게 있습니다. 수익을 창출하지 않으며, 저작권자의 요청 시
                 즉시 삭제합니다.
@@ -124,7 +124,7 @@
 
         <!-- 1.5 로딩 화면: 플레이를 눌렀는데 에셋 로딩이 아직 안 끝났을 때만 표시 -->
         <div id="loadingScreen" class="ui-layer hidden">
-            <img src="assets/setting/Loading.png" id="loadingIcon" alt="로딩중">
+            <img src="assets/setting/Loading.png" id="loadingIcon" alt="로딩중" data-i18n-alt="loadingAlt">
         </div>
     </div>
 
@@ -145,10 +145,10 @@
                     <button id="resumeBtn" onclick="togglePause()">▶</button>
                     <div class="sub-buttons">
                         <button id="homeBtn" onclick="goHome()">
-                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈">
+                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈" data-i18n-alt="homeAlt">
                         </button>
                         <button id="restartBtn" onclick="restartGame()">
-                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작">
+                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작" data-i18n-alt="restartAlt">
                         </button>
                         <button id="soundBtn" class="sound-btn" onclick="toggleSound()">
                             <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
@@ -164,10 +164,10 @@
                     <p id="finalScoreText">0M</p>
                     <div class="sub-buttons">
                         <button id="goHomeBtn" onclick="goHome()">
-                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈">
+                            <img src="assets/setting/Tribe_WareHouse.png" class="btn-icon" alt="홈" data-i18n-alt="homeAlt">
                         </button>
                         <button id="retryBtn" onclick="restartGame()">
-                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작">
+                            <img src="assets/setting/Item_Undo.png" class="btn-icon" alt="재시작" data-i18n-alt="restartAlt">
                         </button>
                     </div>
                 </div>
@@ -175,7 +175,9 @@
         </div>
     </div>
 
-    <!-- 스크립트 로드: 의존성 순서(클래스 정의 -> 핸들러 -> 메인 로직 -> 랭킹) -->
+    <!-- 스크립트 로드: 의존성 순서(다국어 -> 클래스 정의 -> 핸들러 -> 메인 로직 -> 랭킹).
+         i18n.js는 leaderboard.js 등이 t()를 쓸 수 있도록 항상 제일 먼저 로드되어야 한다. -->
+    <script src="js/i18n.js"></script>
     <script src="js/background.js"></script>
     <script src="js/dino.js"></script>
     <script src="js/obstacle.js"></script>

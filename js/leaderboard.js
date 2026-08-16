@@ -102,7 +102,7 @@ function buildRankListItem(row, rank) {
         const img = document.createElement('img');
         img.src = trophyFile;
         img.className = 'rank-trophy-icon';
-        img.alt = `${rank}등`;
+        img.alt = t('rankAlt', { rank });
         li.appendChild(img);
         li.appendChild(document.createTextNode(`${row.nickname} - ${row.score_m}M`));
     } else {
@@ -117,7 +117,7 @@ async function refreshLeaderboardUI() {
     if (!listEl) return;
 
     if (!supabaseClient) {
-        listEl.innerHTML = '<li class="leaderboard-empty">랭킹 서버 준비 중</li>';
+        listEl.innerHTML = `<li class="leaderboard-empty">${t('rankingServerPreparing')}</li>`;
         return;
     }
 
@@ -131,7 +131,7 @@ async function refreshLeaderboardUI() {
 
         listEl.innerHTML = '';
         if (!data || data.length === 0) {
-            listEl.innerHTML = '<li class="leaderboard-empty">아직 기록이 없습니다</li>';
+            listEl.innerHTML = `<li class="leaderboard-empty">${t('noRecordsYet')}</li>`;
             return;
         }
         data.forEach((row, i) => {
@@ -139,7 +139,7 @@ async function refreshLeaderboardUI() {
         });
     } catch (err) {
         console.warn('[Leaderboard] 목록 조회 실패:', err);
-        listEl.innerHTML = '<li class="leaderboard-empty">랭킹을 불러오지 못했습니다</li>';
+        listEl.innerHTML = `<li class="leaderboard-empty">${t('failedToLoad')}</li>`;
     }
 }
 
@@ -151,7 +151,7 @@ async function refreshFullRankingUI() {
     if (!listEl || !myRankEl) return;
 
     if (!supabaseClient) {
-        listEl.innerHTML = '<li class="leaderboard-empty">랭킹 서버 준비 중</li>';
+        listEl.innerHTML = `<li class="leaderboard-empty">${t('rankingServerPreparing')}</li>`;
         myRankEl.textContent = '';
         return;
     }
@@ -169,7 +169,7 @@ async function refreshFullRankingUI() {
 
         listEl.innerHTML = '';
         if (!data || data.length === 0) {
-            listEl.innerHTML = '<li class="leaderboard-empty">아직 기록이 없습니다</li>';
+            listEl.innerHTML = `<li class="leaderboard-empty">${t('noRecordsYet')}</li>`;
         } else {
             data.forEach((row, i) => {
                 const li = buildRankListItem(row, i + 1);
@@ -183,13 +183,13 @@ async function refreshFullRankingUI() {
         const myIndex = (data || []).findIndex(row => row.device_id === myDeviceId);
         if (myIndex >= 0) {
             const my = data[myIndex];
-            myRankEl.textContent = `내 순위: ${myIndex + 1}위 - ${my.nickname} - ${my.score_m}M`;
+            myRankEl.textContent = t('myRankLine', { rank: myIndex + 1, nickname: my.nickname, score: my.score_m });
         } else {
-            myRankEl.textContent = '아직 등록된 기록이 없습니다';
+            myRankEl.textContent = t('notRankedYet');
         }
     } catch (err) {
         console.warn('[Leaderboard] 전체 랭킹 조회 실패:', err);
-        listEl.innerHTML = '<li class="leaderboard-empty">랭킹을 불러오지 못했습니다</li>';
+        listEl.innerHTML = `<li class="leaderboard-empty">${t('failedToLoad')}</li>`;
         myRankEl.textContent = '';
     }
 }

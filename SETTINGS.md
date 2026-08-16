@@ -753,6 +753,25 @@ aspect-ratio:16/9;`)만 남겨뒀습니다.
 유지합니다. **앞으로 새 UI 요소를 `.game-container` 안에 추가할 때 화면 비례 글자 크기가
 필요하면 `vw`가 아니라 `cqw`를 쓰세요** — 안 그러면 이 문제가 재발합니다.
 
+## 다국어(i18n) 지원 (신규, `js/i18n.js`)
+별도의 "언어 선택" 버튼 없이, 기기의 기본 언어(`navigator.languages`)를 자동 감지해서
+지원 언어 중 하나로 보여줍니다. 지원 언어: 한국어(`ko`, 원본), 영어(`en`), 일본어(`ja`),
+중국어 간체(`zh`), 베트남어(`vi`). 지원하지 않는 언어(예: 프랑스어, 독일어)는 전부
+영어(`en`)로 대체됩니다.
+
+| 항목 | 값 |
+|---|---|
+| 언어 감지 | `detectLocale()`이 `navigator.languages`(우선순위 배열)를 순서대로 훑어 `SUPPORTED_LOCALES`와 일치하는 첫 언어를 사용. 하나도 안 맞으면 `en` |
+| 번역 적용 방식 | HTML: `data-i18n`(textContent), `data-i18n-placeholder`, `data-i18n-alt` 속성을 붙인 요소를 `applyTranslations()`가 스캔해서 채움. JS 동적 텍스트(랭킹 메시지 등): `t(key, vars)` 직접 호출 |
+| 로드 순서 | `js/i18n.js`가 `index.html`의 스크립트 중 **가장 먼저** 로드됨(`leaderboard.js` 등 다른 파일이 `t()`를 쓰므로) |
+| `zh-TW`/`zh-HK`(번체) | 번체 번역은 따로 없어서 모든 `zh-*` 태그가 간체(`zh`) 번역으로 매칭됨 |
+| 번역 대상에서 제외 | `<title>`/`og:title`/`og:description`(소셜 공유 미리보기는 크롤러가 JS를 실행하지 않아 번역해도 반영 안 됨), "GAME OVER"/"BEST"/"ON"/"OFF"(이미 게임에서 보편적으로 쓰이는 영어 표기라 의도적으로 고정) |
+
+> ⚠️ 새 UI 텍스트를 추가할 때는 하드코딩된 한국어 대신 `js/i18n.js`의 `translations` 객체에
+> 5개 언어(ko/en/ja/zh/vi) 번역을 모두 추가하고, HTML 요소엔 `data-i18n`(또는
+> `-placeholder`/`-alt`) 속성을, JS 동적 텍스트엔 `t('키')`를 쓰세요. 하나라도 빠뜨리면
+> 그 언어에서는 영어(`translations.en`)로 대체되어 눈에 띄게 티가 납니다.
+
 ## 알려진 개선 여지 (다음에 손볼 것)
 - 전역 변수가 여러 js 파일에 흩어져 있음 (`isGameOver`, `isPaused` 등) → 나중에 `Game` 객체로 통합 고려
 - 이미지 에셋 경로가 틀리면 콘솔에 경고가 뜨도록 onerror 추가함 (이제 무한 로딩 안 걸림)
