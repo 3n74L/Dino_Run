@@ -14,11 +14,25 @@
 const DARKEN_BUCKET = 0.05;
 const darkenedSpriteCache = new Map();
 
+// [수정] 한 프레임 안에서 공룡 파츠 6개 + 장애물 여러 개가 전부 같은 darknessAlpha(main.js가
+// 프레임당 한 번만 계산해서 그대로 넘김)로 이 함수를 반복 호출한다. 매번 반올림+toFixed로
+// 버킷을 다시 계산하는 대신, 마지막 호출의 입력값과 같으면 그 결과(버킷 값 + 캐시 키 조각)를
+// 그대로 재사용한다. 캐시가 이미 프리워밍되어 있어 아래 "굽기" 경로는 사실상 안 타므로,
+// 실질적으로 매 호출마다 반복되던 계산만 줄어든다(동작 결과는 기존과 100% 동일).
+let lastBucketInput = null;
+let lastBucket = 0;
+let lastBucketKeySuffix = '';
+
 function getDarkenedSprite(img, darknessAlpha) {
     if (!img || darknessAlpha <= 0) return img;
-    const bucket = Math.round(darknessAlpha / DARKEN_BUCKET) * DARKEN_BUCKET;
-    const key = img.src + '|' + bucket.toFixed(2);
 
+    if (darknessAlpha !== lastBucketInput) {
+        lastBucket = Math.round(darknessAlpha / DARKEN_BUCKET) * DARKEN_BUCKET;
+        lastBucketKeySuffix = lastBucket.toFixed(2);
+        lastBucketInput = darknessAlpha;
+    }
+
+    const key = img.src + '|' + lastBucketKeySuffix;
     const cached = darkenedSpriteCache.get(key);
     if (cached) return cached;
 
@@ -28,7 +42,7 @@ function getDarkenedSprite(img, darknessAlpha) {
     const octx = off.getContext('2d');
     octx.drawImage(img, 0, 0);
     octx.globalCompositeOperation = 'source-atop';
-    octx.fillStyle = `rgba(0, 0, 0, ${bucket})`;
+    octx.fillStyle = `rgba(0, 0, 0, ${lastBucket})`;
     octx.fillRect(0, 0, img.width, img.height);
 
     darkenedSpriteCache.set(key, off);

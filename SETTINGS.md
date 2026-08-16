@@ -247,6 +247,8 @@ AI(제미나이/클로드 등)와 새로운 채팅을 시작할 때 이 파일�
 | 화면 밖 배경 타일 그리기 생략 | 무한 스크롤 이음새 방지용 "두 번째 타일"이 아직 화면에 안 들어왔는데도 매 프레임 무조건 그려지고 있었음 → 실제로 화면 안에 들어올 때만(`l.x + l.drawWidth - 1 < canvas.width`) 그리도록 조건 추가 | `background.js`의 `draw()` |
 | 장애물 배열 매 프레임 재할당 제거 | `obstacles.filter()`는 호출마다 새 배열을 할당해서 가비지가 쌓이고, GC가 개입하는 순간 프레임이 순간적으로 끊김("중간중간" 렉 체감과 패턴이 일치) → 같은 배열 안에서 살아남는 항목만 앞으로 채워 넣고 `length`만 잘라내는 제자리 압축 방식으로 변경 | `main.js`의 `gameLoop()` |
 | 이미지 보간 품질 완화 | `ctx.imageSmoothingQuality`가 `'high'`였는데, 배경 레이어부터 장애물·공룡 파츠(6개)·해/달까지 **모든** `drawImage` 호출마다 픽셀당 연산량이 늘어나는 옵션이라 저사양 기기 부담이 컸음 → `'medium'`으로 완화(체감 화질은 대부분 유지) | `main.js` 상단 |
+| 점수판 `.innerText` 강제 레이아웃 제거 | `updateScoreUI()`가 매 프레임(최대 240회/초) `.innerText`로 점수판을 갱신했는데, `.innerText`는 읽거나 쓸 때마다 브라우저가 강제로 동기 레이아웃 계산을 하게 만드는 대표적인 성능 함정. `.textContent`로 교체(레이아웃 강제 없음)하고, 화면에 표시되는 정수값이 실제로 바뀐 프레임에만 DOM을 쓰도록 캐싱(`lastDisplayedCurrentScore`/`lastDisplayedBestScore`) — 최고 기록(BEST)은 게임 중 거의 안 바뀌는데도 매 프레임 무조건 다시 쓰고 있었음 | `main.js`의 `updateScoreUI()` |
+| 다크닝 버킷 중복 계산 제거 | 한 프레임 안에서 공룡 파츠 6개+장애물 여러 개가 전부 동일한 `darknessAlpha`(`main.js`가 프레임당 한 번만 계산해서 그대로 넘김)로 `getDarkenedSprite()`를 반복 호출하는데도, 매 호출마다 반올림+`toFixed`로 버킷을 다시 계산하고 있었음 → 마지막 호출의 입력값과 같으면 그 결과(버킷 값 + 캐시 키 조각)를 재사용하도록 1칸짜리 메모이제이션 추가 | `background.js`의 `getDarkenedSprite()` |
 
 > ⚠️ **검토했지만 보류함**: `darkenedSpriteCache`(어둠 단계별 캐시)에 개수 상한(LRU 정리)을
 > 두는 안도 검토했지만, `DARKEN_BUCKET`이 이미 0.05로 성기고 이미지 종류도 많지 않아
@@ -754,18 +756,27 @@ aspect-ratio:16/9;`)만 남겨뒀습니다.
 필요하면 `vw`가 아니라 `cqw`를 쓰세요** — 안 그러면 이 문제가 재발합니다.
 
 ## 다국어(i18n) 지원 (신규, `js/i18n.js`)
-별도의 "언어 선택" 버튼 없이, 기기의 기본 언어(`navigator.languages`)를 자동 감지해서
-지원 언어 중 하나로 보여줍니다. 지원 언어: 한국어(`ko`, 원본), 영어(`en`), 일본어(`ja`),
-중국어 간체(`zh`), 베트남어(`vi`). 지원하지 않는 언어(예: 프랑스어, 독일어)는 전부
-영어(`en`)로 대체됩니다.
+기본은 기기의 기본 언어(`navigator.languages`)를 자동 감지해서 지원 언어 중 하나로
+보여줍니다. 지원 언어: 한국어(`ko`, 원본), 영어(`en`), 일본어(`ja`), 중국어 간체(`zh`),
+베트남어(`vi`). 지원하지 않는 언어(예: 프랑스어, 독일어)는 전부 영어(`en`)로 대체됩니다.
+설정 패널의 "언어" 버튼(`#settingsLanguageBtn`)으로 수동 전환도 가능합니다(누를 때마다
+지원 언어를 순서대로 순환).
 
 | 항목 | 값 |
 |---|---|
 | 언어 감지 | `detectLocale()`이 `navigator.languages`(우선순위 배열)를 순서대로 훑어 `SUPPORTED_LOCALES`와 일치하는 첫 언어를 사용. 하나도 안 맞으면 `en` |
+| 수동 전환 | `#settingsLanguageBtn` 클릭 → `cycleLocale()`이 `SUPPORTED_LOCALES` 배열에서 다음 언어로 순환, `localStorage['dinoRunLocale']`에 저장. 다음 방문부터는 기기 언어 자동 감지보다 이 저장값이 우선함(`loadInitialLocale()`) |
+| 언어 버튼 표시 | 각 언어를 그 언어 자신의 표기로 고정 표시(`LOCALE_DISPLAY_NAMES`: 한국어/English/日本語/中文/Tiếng Việt) — 다른 언어를 모르는 사용자도 목록에서 자기 언어를 알아볼 수 있도록, 현재 로케일로 번역하지 않음 |
 | 번역 적용 방식 | HTML: `data-i18n`(textContent), `data-i18n-placeholder`, `data-i18n-alt` 속성을 붙인 요소를 `applyTranslations()`가 스캔해서 채움. JS 동적 텍스트(랭킹 메시지 등): `t(key, vars)` 직접 호출 |
 | 로드 순서 | `js/i18n.js`가 `index.html`의 스크립트 중 **가장 먼저** 로드됨(`leaderboard.js` 등 다른 파일이 `t()`를 쓰므로) |
 | `zh-TW`/`zh-HK`(번체) | 번체 번역은 따로 없어서 모든 `zh-*` 태그가 간체(`zh`) 번역으로 매칭됨 |
 | 번역 대상에서 제외 | `<title>`/`og:title`/`og:description`(소셜 공유 미리보기는 크롤러가 JS를 실행하지 않아 번역해도 반영 안 됨), "GAME OVER"/"BEST"/"ON"/"OFF"(이미 게임에서 보편적으로 쓰이는 영어 표기라 의도적으로 고정) |
+
+> ⚠️ **시행착오 기록**: 처음엔 "기기 언어를 자동 감지하니 수동 선택 버튼은 필요 없다"는
+> 요청으로 자동 감지만 구현했었는데, 이후 수동으로 언어를 바꿀 수 있는 버튼을 설정 패널에
+> 추가해달라는 요청이 다시 들어와서 `#settingsLanguageBtn`을 추가했습니다. 자동 감지 로직은
+> 그대로 유지하고(최초 방문 시 fallback), 수동 선택 시에만 `localStorage`에 저장해 그 이후엔
+> 자동 감지보다 우선하도록 했습니다 - 두 기능이 서로 충돌하지 않습니다.
 
 > ⚠️ 새 UI 텍스트를 추가할 때는 하드코딩된 한국어 대신 `js/i18n.js`의 `translations` 객체에
 > 5개 언어(ko/en/ja/zh/vi) 번역을 모두 추가하고, HTML 요소엔 `data-i18n`(또는

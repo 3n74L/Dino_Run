@@ -720,11 +720,18 @@ img {
 /* 스크롤 영역: 1등부터 쭉 스크롤해서 볼 수 있는 부분. flex:1로 남는 공간을 전부 차지하고,
    내 순위(#myRankRow)는 이 스크롤 영역 밖에 있어서 스크롤해도 항상 같은 자리에 고정된다
    (엑셀의 "틀 고정"과 같은 효과 - 별도의 position:sticky 없이 레이아웃만으로 구현). */
+/* [수정] 스크롤 기능은 그대로 두되(휠/터치로 계속 스크롤 가능), 세로 스크롤바가 시각적으로
+   보이는 것만 없앤다. */
 #rankingListScroll {
     flex: 1;
     width: 100%;
     min-height: 0; /* flex 자식이 실제로 넘칠 때 스크롤되게 하려면 필요 */
     overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+}
+
+#rankingListScroll::-webkit-scrollbar {
+    display: none; /* Chrome/Safari/Edge */
 }
 
 #rankingFullList {
@@ -813,14 +820,30 @@ img {
     background-color: #ffd400;
 }
 
+/* [신규] 언어 버튼: "ON"/"OFF"와 달리 언어 이름 길이가 제각각(中文 ~ Tiếng Việt)이라
+   다른 설정 버튼처럼 폭을 고정하면 긴 이름이 잘린다. 좌우 패딩만 넉넉히 주고 폭은
+   내용에 맞춰 늘어나도록 둔다. */
+#settingsLanguageBtn {
+    width: auto;
+    min-width: 5.83cqw;
+    padding: 0.67cqw 1.2cqw;
+    white-space: nowrap;
+}
+
 /* [신규] 음량 슬라이더도 같은 노란색(#ffd400)으로. accent-color 하나로 트랙 채움/손잡이
    색이 브라우저 기본 렌더링을 그대로 따라가면서 전부 노란색으로 바뀐다. */
+/* [수정] <input type="range">는 flex 아이템의 기본 min-width:auto가 내용물(브라우저가 정한
+   슬라이더 자체의 기본 너비)만큼 잡혀서, 다른 요소들과 달리 패널 너비가 줄어들 때 같이
+   줄어들지 못하고 오른쪽이 잘렸다. min-width:0으로 그 최소폭을 없애고 width를 다른
+   요소들처럼 cqw로 지정해서 패널 너비에 비례해 같이 줄어들도록 함. */
 #volumeSlider {
     accent-color: #ffd400;
+    width: 10cqw;
+    min-width: 0;
 }
 
 .settings-note {
-    margin: -20px 0 0 0;
+    margin: -14px 0 0 0; /* [수정] 히트박스 설정 행에 너무 딱 붙어 보여서 여백을 살짝 늘림 (-20px -> -14px) */
     max-width: 21.67cqw;
     font-size: 1cqw;
     color: #ffb3b3;

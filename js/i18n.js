@@ -1,9 +1,15 @@
-// 다국어(i18n) 지원. 별도의 "언어 선택" 버튼 없이, 기기의 기본 언어(navigator.language)를
-// 그대로 읽어서 지원하는 언어 중 하나로 자동 매칭한다. 지원하지 않는 언어면 영어로 대체한다.
+// 다국어(i18n) 지원. 기본은 기기의 기본 언어(navigator.language)를 읽어서 지원하는 언어 중
+// 하나로 자동 매칭하고(지원하지 않는 언어면 영어로 대체), 설정 패널의 "언어" 버튼으로 수동
+// 전환도 가능하다(누를 때마다 지원 언어를 순서대로 순환). 수동으로 선택한 언어는
+// localStorage에 저장되어, 다음 방문 때는 기기 언어 자동 감지보다 이 저장값을 우선한다.
 // 반드시 다른 스크립트(leaderboard.js 등)보다 먼저 로드되어야 t()/applyTranslations()를
 // 쓸 수 있다 (index.html의 스크립트 순서 맨 앞).
 
 const SUPPORTED_LOCALES = ['ko', 'en', 'ja', 'zh', 'vi'];
+// 언어 버튼에 표시할 이름은 각 언어 자신의 표기로 고정한다(현재 로케일로 번역하지 않음) -
+// 다른 언어를 모르는 사용자도 목록에서 자기 언어를 알아볼 수 있어야 하기 때문.
+const LOCALE_DISPLAY_NAMES = { ko: '한국어', en: 'English', ja: '日本語', zh: '中文', vi: 'Tiếng Việt' };
+const LOCALE_STORAGE_KEY = 'dinoRunLocale';
 
 const translations = {
     ko: {
@@ -16,6 +22,7 @@ const translations = {
         labelHitbox: '히트박스 표시',
         hitboxNote: '⚠ 히트박스를 켜면 랭킹에 등록되지 않습니다.',
         labelInvert: '반전 모드',
+        labelLanguage: '언어',
         closeBtn: '닫기',
         gameTitle: '다이노 런',
         nicknamePlaceholder: '닉네임',
@@ -42,6 +49,7 @@ const translations = {
         labelHitbox: 'Show Hitbox',
         hitboxNote: '⚠ Turning on hitbox display will exclude your score from the leaderboard.',
         labelInvert: 'Invert Mode',
+        labelLanguage: 'Language',
         closeBtn: 'Close',
         gameTitle: 'Dino Run',
         nicknamePlaceholder: 'Nickname',
@@ -68,6 +76,7 @@ const translations = {
         labelHitbox: '当たり判定表示',
         hitboxNote: '⚠ 当たり判定を表示するとランキングには登録されません。',
         labelInvert: '反転モード',
+        labelLanguage: '言語',
         closeBtn: '閉じる',
         gameTitle: 'Dino Run',
         nicknamePlaceholder: 'ニックネーム',
@@ -94,6 +103,7 @@ const translations = {
         labelHitbox: '显示碰撞箱',
         hitboxNote: '⚠ 开启碰撞箱显示后，成绩将不会计入排行榜。',
         labelInvert: '反色模式',
+        labelLanguage: '语言',
         closeBtn: '关闭',
         gameTitle: 'Dino Run',
         nicknamePlaceholder: '昵称',
@@ -120,6 +130,7 @@ const translations = {
         labelHitbox: 'Hiển thị Hitbox',
         hitboxNote: '⚠ Bật hiển thị hitbox sẽ khiến điểm của bạn không được ghi vào bảng xếp hạng.',
         labelInvert: 'Chế độ đảo màu',
+        labelLanguage: 'Ngôn ngữ',
         closeBtn: 'Đóng',
         gameTitle: 'Dino Run',
         nicknamePlaceholder: 'Biệt danh',
@@ -151,7 +162,14 @@ function detectLocale() {
     return 'en';
 }
 
-const currentLocale = detectLocale();
+// 저장된 수동 선택이 있으면 기기 언어 자동 감지보다 그 값을 우선한다.
+function loadInitialLocale() {
+    const saved = localStorage.getItem(LOCALE_STORAGE_KEY);
+    if (saved && SUPPORTED_LOCALES.includes(saved)) return saved;
+    return detectLocale();
+}
+
+let currentLocale = loadInitialLocale();
 document.documentElement.lang = currentLocale;
 
 // vars: { rank: 3, nickname: '홍길동', score: 1234 } 같은 치환값. {rank} 형태의 자리표시자를 채운다.
@@ -179,4 +197,23 @@ function applyTranslations() {
     });
 }
 
+// 설정 패널의 언어 버튼 표시를 현재 언어에 맞게 갱신 (버튼 자체는 항상 각 언어의 자기 표기로 보임).
+function syncLanguageButton() {
+    const btn = document.getElementById('settingsLanguageBtn');
+    if (btn) btn.textContent = LOCALE_DISPLAY_NAMES[currentLocale] || currentLocale;
+}
+
+// 설정 패널의 "언어" 버튼 클릭 시 호출: 지원 언어를 순서대로 하나씩 순환하며 즉시 반영하고,
+// 다음 방문에도 유지되도록 localStorage에 저장한다(기기 언어 자동 감지보다 우선하게 됨).
+function cycleLocale() {
+    const nextIndex = (SUPPORTED_LOCALES.indexOf(currentLocale) + 1) % SUPPORTED_LOCALES.length;
+    currentLocale = SUPPORTED_LOCALES[nextIndex];
+    localStorage.setItem(LOCALE_STORAGE_KEY, currentLocale);
+    document.documentElement.lang = currentLocale;
+    applyTranslations();
+    syncLanguageButton();
+    // 클릭 효과음은 audio.js의 전역 <button> 클릭 리스너가 이미 처리하므로 여기서 따로 재생하지 않는다.
+}
+
 applyTranslations();
+syncLanguageButton();

@@ -219,11 +219,29 @@ let arenaBgmTriggered = false;
 // 상대적으로 미미해짐)에만 느림/빠름을 둘 다 허용한다.
 const PTERA_SLOW_UNLOCK_SCORE = 250;
 
+// [수정] 매 프레임(최대 240회/초) 호출되는데, .innerText는 읽고 쓸 때마다 브라우저가
+// CSS 줄바꿈/가시성까지 반영한 강제 동기 레이아웃 계산을 하게 만드는 대표적인 성능 함정이라
+// .textContent로 교체(레이아웃을 강제하지 않음). 추가로 화면에 표시되는 정수값이 실제로
+// 바뀐 프레임에만 DOM을 쓰도록 캐싱 - 최고 기록(BEST)은 게임 중 거의 안 바뀌는데도 매
+// 프레임 무조건 다시 쓰고 있었고, 현재 점수도 소수점이 올라가는 매 프레임 다시 썼었다.
+let lastDisplayedCurrentScore = null;
+let lastDisplayedBestScore = null;
+
 function updateScoreUI() {
     const currentEl = document.getElementById('currentScoreText');
     const bestEl = document.getElementById('bestScoreText');
-    if (currentEl) currentEl.innerText = `${Math.floor(currentScore)}M`;
-    if (bestEl) bestEl.innerText = `BEST ${Math.floor(bestScore)}M`;
+
+    const flooredCurrent = Math.floor(currentScore);
+    if (currentEl && flooredCurrent !== lastDisplayedCurrentScore) {
+        currentEl.textContent = `${flooredCurrent}M`;
+        lastDisplayedCurrentScore = flooredCurrent;
+    }
+
+    const flooredBest = Math.floor(bestScore);
+    if (bestEl && flooredBest !== lastDisplayedBestScore) {
+        bestEl.textContent = `BEST ${flooredBest}M`;
+        lastDisplayedBestScore = flooredBest;
+    }
 }
 updateScoreUI(); // 최고 기록 초기 표시
 
