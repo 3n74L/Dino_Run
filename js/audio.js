@@ -1,6 +1,6 @@
-// 오디오 재생 관리. 설정의 소리 on/off(main.js의 isAudioOn)를 그대로 따라간다.
-// 효과음(sfx)은 매번 새로 재생, 배경음악(bgm)은 한 번에 한 트랙만 반복 재생되도록
-// switchBgm()이 이전 트랙을 확실히 멈추고 넘어간다.
+// 오디오 재생 관리. 설정의 배경음악/효과음 on-off(main.js의 isMusicOn/isSfxOn)와 음량
+// (masterVolume)을 그대로 따라간다. 효과음(sfx)은 매번 새로 재생, 배경음악(bgm)은 한 번에
+// 한 트랙만 반복 재생되도록 switchBgm()이 이전 트랙을 확실히 멈추고 넘어간다.
 
 // [수정] 배경음악 두 개가 전혀 안 들리는 버그가 있었다. 원인으로 의심되는 부분: 페이지가
 // 로드되자마자(사용자 제스처 전) switchBgm()이 곧바로 .play()를 시도했었는데, 브라우저의
@@ -22,9 +22,8 @@ const sfx = {
     gameOver: new Audio('audio/Occupy.ogg'),
     newBest: new Audio('audio/purchase.ogg')
 };
-sfx.buttonClick.volume = 1; // 이미 최대치지만, "더 키워달라"는 요청에 대한 답이 이 값이 한계임을 명시
 
-const BGM_VOLUME = 0.6; // [수정] 배경음악 2개(홈/인게임) 전부 60% 음량으로
+const BGM_VOLUME = 0.6; // [수정] 배경음악 2개(홈/인게임) 전부 60% 음량으로. 아래 masterVolume과 곱해져 최종 볼륨이 됨
 
 const homeBgm = new Audio('audio/TribeFieldBGM.ogg');
 const gameBgm = new Audio('audio/HomeBGM.ogg');
@@ -37,9 +36,16 @@ const arenaBgm = new Audio('audio/TribeArenaBGM.ogg');
 let currentBgm = null; // 지금 재생 "되어야 하는" 배경음악 트랙(소리가 꺼져있어도 추적은 계속함)
 let bgmFadeInterval = null;
 
+// [신규] 설정 패널의 음량 슬라이더(main.js의 handleVolumeSliderInput())가 여기로 값을 넘긴다.
+// 배경음악(BGM_VOLUME 기준)과 효과음(재생 시점에 적용) 둘 다에 공통으로 곱해지는 배율.
+function setMasterVolume(value) {
+    if (currentBgm) currentBgm.volume = BGM_VOLUME * value;
+}
+
 function playSfx(audio) {
-    if (!isAudioOn) return;
+    if (!isSfxOn) return;
     audio.currentTime = 0;
+    audio.volume = masterVolume;
     audio.play().catch(() => {}); // 자동재생 제한 등으로 재생이 막혀도 조용히 무시
 }
 
@@ -61,8 +67,8 @@ function switchBgm(nextTrack) {
         currentBgm.currentTime = 0;
     }
     currentBgm = nextTrack;
-    currentBgm.volume = BGM_VOLUME;
-    if (isAudioOn && hasUserGesture) {
+    currentBgm.volume = BGM_VOLUME * masterVolume;
+    if (isMusicOn && hasUserGesture) {
         currentBgm.play().catch(() => {});
     }
 }
@@ -91,16 +97,16 @@ function fadeToArenaBgm() {
             bgmFadeInterval = null;
             fadingOut.pause();
             fadingOut.currentTime = 0;
-            fadingOut.volume = BGM_VOLUME; // 다음에 다시 쓰일 때를 위해 원상복구
+            fadingOut.volume = BGM_VOLUME * masterVolume; // 다음에 다시 쓰일 때를 위해 원상복구
             switchBgm(arenaBgm);
         }
     }, stepMs);
 }
 
-// 설정에서 소리를 껐다 켰다 할 때, 지금 재생 "되어야 하는" 배경음악도 같이 멈추거나 재개한다.
-function applyAudioOnState() {
+// 설정에서 배경음악을 껐다 켰다 할 때, 지금 재생 "되어야 하는" 배경음악도 같이 멈추거나 재개한다.
+function applyMusicOnState() {
     if (!currentBgm) return;
-    if (isAudioOn) {
+    if (isMusicOn) {
         if (hasUserGesture) currentBgm.play().catch(() => {});
     } else {
         currentBgm.pause();
@@ -112,7 +118,7 @@ function applyAudioOnState() {
 // 재생 중이 아닐 때만) 계속 재생을 시도해서 어떤 이유로든 놓쳤던 재생을 스스로 복구한다.
 function ensureBgmPlaying() {
     hasUserGesture = true;
-    if (currentBgm && isAudioOn && currentBgm.paused) {
+    if (currentBgm && isMusicOn && currentBgm.paused) {
         currentBgm.play().catch(() => {});
     }
 }

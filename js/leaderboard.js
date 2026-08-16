@@ -87,6 +87,30 @@ async function submitScoreToLeaderboard(nickname, score) {
     }
 }
 
+// 1~3등은 순위 숫자("1.") 대신 트로피 이미지를 앞에 붙이고, 그 밖의 순위는 기존처럼
+// 숫자로만 표시한다. innerHTML을 쓰면 닉네임에 포함된 문자가 마크업으로 해석될 수 있어서,
+// 트로피 이미지는 별도 <img> 엘리먼트로, 닉네임/점수는 텍스트 노드로 각각 안전하게 붙인다.
+const RANK_TROPHY_FILES = ['assets/setting/Trophy_01.png', 'assets/setting/Trophy_02.png', 'assets/setting/Trophy_03.png'];
+function buildRankListItem(row, rank) {
+    const li = document.createElement('li');
+    const trophyFile = RANK_TROPHY_FILES[rank - 1];
+    if (trophyFile) {
+        // [신규] 1등이 가장 크고 2등, 3등 순으로 글자가 작아지되, 3등도 트로피 없는 4등
+        // 이하(기본 글자 크기)보다는 크게 보이도록 행 전체에 순위별 크기 클래스를 붙인다.
+        // 트로피 이미지 크기는 em 단위라 이 글자 크기를 그대로 따라 같이 커지고 작아진다.
+        li.classList.add(`rank-row-${rank}`);
+        const img = document.createElement('img');
+        img.src = trophyFile;
+        img.className = 'rank-trophy-icon';
+        img.alt = `${rank}등`;
+        li.appendChild(img);
+        li.appendChild(document.createTextNode(`${row.nickname} - ${row.score_m}M`));
+    } else {
+        li.textContent = `${rank}. ${row.nickname} - ${row.score_m}M`;
+    }
+    return li;
+}
+
 // 홈 화면의 상위 기록 목록을 갱신한다.
 async function refreshLeaderboardUI() {
     const listEl = document.getElementById('leaderboardList');
@@ -111,9 +135,7 @@ async function refreshLeaderboardUI() {
             return;
         }
         data.forEach((row, i) => {
-            const li = document.createElement('li');
-            li.textContent = `${i + 1}. ${row.nickname} - ${row.score_m}M`;
-            listEl.appendChild(li);
+            listEl.appendChild(buildRankListItem(row, i + 1));
         });
     } catch (err) {
         console.warn('[Leaderboard] 목록 조회 실패:', err);
@@ -143,18 +165,21 @@ async function refreshFullRankingUI() {
             .limit(500);
         if (error) throw error;
 
+        const myDeviceId = getOrCreateDeviceId();
+
         listEl.innerHTML = '';
         if (!data || data.length === 0) {
             listEl.innerHTML = '<li class="leaderboard-empty">아직 기록이 없습니다</li>';
         } else {
             data.forEach((row, i) => {
-                const li = document.createElement('li');
-                li.textContent = `${i + 1}. ${row.nickname} - ${row.score_m}M`;
+                const li = buildRankListItem(row, i + 1);
+                // [신규] 전체 목록을 스크롤하다가도 내 기록을 바로 찾을 수 있도록, 1~3등
+                // 트로피 강조와는 별개로 내 deviceId와 일치하는 행에도 노란색 강조를 추가한다.
+                if (row.device_id === myDeviceId) li.classList.add('my-rank-row');
                 listEl.appendChild(li);
             });
         }
 
-        const myDeviceId = getOrCreateDeviceId();
         const myIndex = (data || []).findIndex(row => row.device_id === myDeviceId);
         if (myIndex >= 0) {
             const my = data[myIndex];

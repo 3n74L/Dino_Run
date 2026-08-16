@@ -9,10 +9,13 @@
 
 /* [신규] 이미지든 글자(타이틀 등)든 마우스로 드래그/선택되지 않도록 전역 차단.
    실제 드래그 시작 자체는 input.js의 dragstart preventDefault가 막고,
-   여기서는 텍스트가 파랗게 선택되는 것까지 같이 막는다. */
+   여기서는 텍스트가 파랗게 선택되는 것까지 같이 막는다.
+   [수정] 모바일에서 버튼 등을 탭하면 브라우저 기본 동작으로 파란색(또는 회색) 하이라이트가
+   잠깐 덮이는데, 게임 UI에는 불필요해서 같이 투명 처리. */
 * {
     user-select: none;
     -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* 단, 닉네임 입력칸은 일반적인 텍스트 입력/선택이 가능해야 하므로 예외 처리 */
@@ -536,6 +539,11 @@ img {
 @media (pointer: coarse) {
     .fullscreen-btn {
         display: flex;
+        /* [수정] 실제 모바일 기기에서 눌러보니 다른 코너 버튼과 같은 크기(5%)로는 너무
+           작아서 누르기 불편하다는 피드백으로, 터치 환경에서만 더 크게 키움.
+           9% -> 7.5%로 살짝 줄임(9%는 오히려 너무 컸다는 피드백). */
+        width: 7.5%;
+        font-size: 2.4cqw;
     }
 }
 
@@ -632,14 +640,36 @@ img {
     font-size: 1.08cqw;
 }
 
-/* [신규] 1위 강조 (홈 미리보기 + 랭킹 패널 전체 목록 둘 다 적용).
-   목록이 항상 점수 내림차순으로 새로 그려지므로 첫 번째 항목이 곧 1위 -> :first-child로 충분.
-   빈 목록일 때 나오는 안내문구(.leaderboard-empty)는 1위 취급하지 않도록 제외. */
-#leaderboardList li:first-child:not(.leaderboard-empty),
-#rankingFullList li:first-child:not(.leaderboard-empty) {
+/* [수정] 1~3등 강조는 색상/크기 대신 각 순위 번호 자리에 트로피 이미지를 붙이는 방식으로 변경
+   (내 기록 행만 노란색으로 표시하도록 변경, 아래 참고). */
+.rank-trophy-icon {
+    height: 1.3em;
+    width: auto;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+/* [신규] 1등 > 2등 > 3등 순으로 행 전체의 글자 크기를 줄이되, 트로피가 없는 4등 이하(기본
+   글자 크기, 1em)보다는 3등도 항상 크게 보이도록 최소 크기를 확보. 트로피 이미지는 em
+   단위(.rank-trophy-icon)라 이 글자 크기를 그대로 따라 같이 커지고 작아진다. */
+#leaderboardList li.rank-row-1,
+#rankingFullList li.rank-row-1 {
+    font-size: 1.35em;
+}
+
+#leaderboardList li.rank-row-2,
+#rankingFullList li.rank-row-2 {
+    font-size: 1.2em;
+}
+
+#leaderboardList li.rank-row-3,
+#rankingFullList li.rank-row-3 {
+    font-size: 1.1em;
+}
+
+/* [신규] 랭킹 패널 전체 목록에서 내 기록 행 강조. 스크롤하다가도 바로 눈에 띄도록 노란색으로 표시. */
+#rankingFullList li.my-rank-row {
     color: #ffd400;
-    font-weight: bold;
-    font-size: 1.15em;
 }
 
 /* 랭킹 패널(우측 드로어): 설정 패널(#settingsPanel)과 완전히 대칭되는 구조.
@@ -781,6 +811,12 @@ img {
 /* [신규] 켜짐(ON) 상태를 노란색으로 표시 */
 .setting-row button.on {
     background-color: #ffd400;
+}
+
+/* [신규] 음량 슬라이더도 같은 노란색(#ffd400)으로. accent-color 하나로 트랙 채움/손잡이
+   색이 브라우저 기본 렌더링을 그대로 따라가면서 전부 노란색으로 바뀐다. */
+#volumeSlider {
+    accent-color: #ffd400;
 }
 
 .settings-note {

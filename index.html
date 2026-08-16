@@ -54,11 +54,25 @@
                     <h2 class="settings-title">설정</h2>
 
                     <div class="setting-row">
-                        <span class="setting-label">음악</span>
-                        <button id="settingsSoundBtn" class="sound-btn on" onclick="toggleSound()">
+                        <span class="setting-label">배경음악</span>
+                        <button id="settingsMusicBtn" class="sound-btn on" onclick="toggleMusic()">
                             <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
                             <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
                         </button>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">효과음</span>
+                        <button id="settingsSfxBtn" class="sound-btn on" onclick="toggleSfx()">
+                            <img src="assets/setting/Sound_Off.png" class="btn-icon" alt="">
+                            <img src="assets/setting/Sound_On.png" class="btn-icon sound-on-icon" alt="">
+                        </button>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">음량</span>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="100"
+                               oninput="handleVolumeSliderInput(this.value)">
                     </div>
 
                     <div class="setting-row">

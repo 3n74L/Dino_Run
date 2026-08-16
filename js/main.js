@@ -148,7 +148,11 @@ window.gameConfig = {
 // 게임 제어 플래그
 let isPaused = false;
 let isLoopRunning = false;
-let isAudioOn = true;
+// [수정] 배경음악/효과음을 따로 끄고 켤 수 있도록 isAudioOn 하나를 둘로 분리.
+// 음악만 끄고 싶거나 효과음만 끄고 싶다는 요청 반영.
+let isMusicOn = true;
+let isSfxOn = true;
+let masterVolume = 1; // [신규] 0~1, 배경음악(BGM_VOLUME)과 효과음 볼륨에 공통으로 곱해지는 배율
 let isInputActive = false;
 let obstacleTimeout = null;
 let jumpBufferTime = 0;
@@ -400,21 +404,56 @@ function goHome() {
 
 // [수정] 소리 버튼을 이모지 텍스트 대신 Sound_Off.png(항상 표시) + Sound_On.png(소리 켜졌을
 // 때만 표시) 아이콘 조합으로 변경. Off 이미지 오른쪽에 On 이미지를 나란히 둬서 "소리가
-// 들리는 중"을 표현하고, 끄면 On 이미지만 숨긴다. 일시정지 메뉴(#soundBtn)와 홈 설정
-// (#settingsSoundBtn) 둘 다 같은 클래스(.sound-on-icon)를 쓰므로 한 번에 동기화된다.
+// 들리는 중"을 표현하고, 끄면 On 이미지만 숨긴다.
+// [수정] 배경음악/효과음을 따로 끄고 켤 수 있게 되면서(isMusicOn/isSfxOn), 아이콘 버튼이
+// 세 곳(일시정지 메뉴 #soundBtn, 설정의 #settingsMusicBtn/#settingsSfxBtn)으로 늘었다.
+// 각자 어떤 상태를 나타내는지 다르므로(#soundBtn은 "배경음악 또는 효과음 중 하나라도
+// 켜져 있는지", 나머지 둘은 각자의 단일 상태) 더 이상 ".sound-on-icon 전부 동일하게"
+// 동기화할 수 없어서, 버튼 하나씩 상태를 넣어 갱신하는 함수로 바꿨다.
+function updateSoundIconDisplay(btnId, isOn) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.classList.toggle('on', isOn);
+    const onIcon = btn.querySelector('.sound-on-icon');
+    if (onIcon) onIcon.style.display = isOn ? '' : 'none';
+}
+
+// isMusicOn/isSfxOn이 바뀔 때마다 관련된 소리 아이콘 버튼 3개를 전부 다시 동기화한다.
+function syncSoundUI() {
+    updateSoundIconDisplay('soundBtn', isMusicOn || isSfxOn); // 일시정지 메뉴: 둘 중 하나라도 켜져 있으면 "켜짐"으로 표시
+    updateSoundIconDisplay('settingsMusicBtn', isMusicOn);
+    updateSoundIconDisplay('settingsSfxBtn', isSfxOn);
+}
+
+// 일시정지 메뉴의 원형 소리 버튼(#soundBtn) 전용: 배경음악/효과음을 한 번에 끄고 켜는
+// "빠른 음소거" 역할. 세부 설정(배경음악만 끄기 등)은 설정 패널에서.
 function toggleSound() {
-    isAudioOn = !isAudioOn;
-    document.querySelectorAll('.sound-on-icon').forEach(img => {
-        img.style.display = isAudioOn ? '' : 'none';
-    });
-    // [신규] 설정 패널의 소리 버튼도 켜짐 상태(기본값 on)를 노란색으로 표시.
-    // .setting-row button.on 규칙만 노란 배경을 적용하므로, .setting-row 밖에 있는
-    // 일시정지 메뉴의 원형 소리 버튼(#soundBtn)에는 이 클래스가 붙어도 시각적 영향이 없다.
-    document.querySelectorAll('.sound-btn').forEach(btn => {
-        btn.classList.toggle('on', isAudioOn);
-    });
+    const turnOn = !(isMusicOn || isSfxOn);
+    isMusicOn = turnOn;
+    isSfxOn = turnOn;
+    syncSoundUI();
     // [신규] 지금 재생 "되어야 하는" 배경음악도 같이 멈추거나 재개한다.
-    if (typeof applyAudioOnState === 'function') applyAudioOnState();
+    if (typeof applyMusicOnState === 'function') applyMusicOnState();
+}
+
+// [신규] 설정 패널 전용: 배경음악만 끄고 켜기
+function toggleMusic() {
+    isMusicOn = !isMusicOn;
+    syncSoundUI();
+    if (typeof applyMusicOnState === 'function') applyMusicOnState();
+}
+
+// [신규] 설정 패널 전용: 효과음만 끄고 켜기
+function toggleSfx() {
+    isSfxOn = !isSfxOn;
+    syncSoundUI();
+}
+
+// [신규] 설정 패널의 음량 슬라이더(0~100) 입력 처리. 배경음악/효과음 공통 배율(masterVolume,
+// 0~1)로 적용된다.
+function handleVolumeSliderInput(sliderValue) {
+    masterVolume = Math.max(0, Math.min(100, Number(sliderValue))) / 100;
+    if (typeof setMasterVolume === 'function') setMasterVolume(masterVolume);
 }
 
 // 히트박스 표시 토글 (설정 화면 전용). 개발용 디버그 시각화를 플레이어가 직접 켤 수 있게 하되,
@@ -449,8 +488,8 @@ function toggleInvert() {
 // 밀려나도록 변경 (뒤 내용이 비쳐서 안 보이던 문제 해결). 톱니바퀴 버튼의 회전 애니메이션도
 // 같은 'settings-open' 클래스를 기준으로 CSS에서 처리한다.
 function openSettings() {
-    // 소리 아이콘은 toggleSound()가 항상 두 버튼(#soundBtn, #settingsSoundBtn)을 동시에
-    // 갱신하므로 여기서 따로 동기화할 필요가 없다.
+    // 소리 아이콘은 toggleMusic()/toggleSfx()/toggleSound()가 항상 관련 버튼을 즉시
+    // 갱신하므로(syncSoundUI) 여기서 따로 동기화할 필요가 없다.
     const hitboxBtn = document.getElementById('settingsHitboxBtn');
     if (hitboxBtn) {
         hitboxBtn.innerText = window.gameConfig.debugHitbox ? "ON" : "OFF";
@@ -460,6 +499,11 @@ function openSettings() {
     if (invertBtn) {
         invertBtn.innerText = isInvertOn ? "ON" : "OFF";
         invertBtn.classList.toggle('on', isInvertOn);
+    }
+    // [신규] 음량 슬라이더도 현재 masterVolume 값과 항상 일치하도록 동기화
+    const volumeSlider = document.getElementById('volumeSlider');
+    if (volumeSlider) {
+        volumeSlider.value = Math.round(masterVolume * 100);
     }
     document.getElementById('homeScreen').classList.add('settings-open');
 }

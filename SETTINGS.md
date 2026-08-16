@@ -276,7 +276,7 @@ day -> sun_phase_out -> moon_phase_in -> moon_settling(0.3초 감속) -> night
 |---|---|
 | 닉네임 저장 위치 | `localStorage['dinoRunNickname']` (추후 랭킹 시스템에서 사용 예정) |
 | 설정 버튼 위치 | 홈 화면 좌측 상단(`#homeSettingsBtn`), `toggleSettings()`로 열기/닫기 토글 |
-| 설정 항목 | 음악 on/off, 히트박스 표시 on/off, 반전 모드 on/off |
+| 설정 항목 | 배경음악 on/off, 효과음 on/off, 음량(0~100%) 슬라이더, 히트박스 표시 on/off, 반전 모드 on/off |
 | 랭킹 시스템 | 구현 완료 (아래 "랭킹 시스템(신규, Supabase)" 섹션 참고) |
 
 ### 설정 버튼 토글 + 회전 애니메이션 (신규)
@@ -294,7 +294,7 @@ day -> sun_phase_out -> moon_phase_in -> moon_settling(0.3초 감속) -> night
 | 설정(`#homeSettingsBtn`) | `Tribe_Info_Icon-Setting.png` (`#homeSettingsBtn .btn-icon`만 88%로 별도 확대) |
 | 홈(`#homeBtn`, `#goHomeBtn`) | `Tribe_WareHouse.png` |
 | 재시작(`#restartBtn`, `#retryBtn`) | `Item_Undo.png` |
-| 소리(`#soundBtn`, `#settingsSoundBtn`) | `Sound_Off.png`(항상 표시) + `Sound_On.png`(소리 켜졌을 때만 표시, `.sound-on-icon`) |
+| 소리(`#soundBtn`, `#settingsMusicBtn`, `#settingsSfxBtn`) | `Sound_Off.png`(항상 표시) + `Sound_On.png`(켜졌을 때만 표시, `.sound-on-icon`) |
 
 > 아이콘 크기는 55%(기본) → 65% → **80%**(현재, 홈/재시작 공용 `.btn-icon`)로 커졌고,
 > 설정 버튼(`#homeSettingsBtn .btn-icon`)은 80% → 88% → 96%까지 `width`/`height` 퍼센트로
@@ -337,9 +337,11 @@ day -> sun_phase_out -> moon_phase_in -> moon_settling(0.3초 감속) -> night
 토글합니다. CSS `.setting-row button.on { background-color: #ffd400; }`로 켜짐 상태를
 노란색으로 표시합니다. `openSettings()`를 열 때도 현재 상태에 맞게 `.on` 클래스를 다시
 동기화합니다. `toggleSound()`도 `.sound-btn` 전체에 `.on`을 토글해서 같은 방식으로 표시하고,
-소리는 기본값이 켜짐(`isAudioOn = true`)이라 `#settingsSoundBtn`에 처음부터 `class="sound-btn
-on"`을 넣어뒀습니다. `.setting-row button.on` 규칙은 `.setting-row` 안의 버튼에만 적용되므로
-일시정지 메뉴의 원형 소리 버튼(`#soundBtn`)에 `.on`이 붙어도 시각적으로는 영향이 없습니다.
+소리는 기본값이 켜짐(`isMusicOn = isSfxOn = true`)이라 `#settingsMusicBtn`/`#settingsSfxBtn`에
+처음부터 `class="sound-btn on"`을 넣어뒀습니다. `.setting-row button.on` 규칙은 `.setting-row`
+안의 버튼에만 적용되므로 일시정지 메뉴의 원형 소리 버튼(`#soundBtn`)에 `.on`이 붙어도 시각적으로는
+영향이 없습니다(단, `syncSoundUI()`가 `isMusicOn || isSfxOn` 기준으로 이 버튼의 아이콘 표시 여부는
+계속 갱신합니다 — 아래 "배경음악/효과음/음량 분리" 섹션 참고).
 
 ### 설정 버튼 고정 너비 (수정)
 `.setting-row button`(히트박스/반전/소리 버튼 전부)이 `padding`만 있고 너비가 내용물
@@ -518,6 +520,10 @@ Edge Function 두 개만** 할 수 있습니다:
 드래그하거나 텍스트가 선택되는 것을 전역적으로 막았습니다. 새로 추가하는 UI 요소도 이 전역
 규칙 덕분에 별도 처리 없이 자동으로 드래그/선택이 안 됩니다.
 
+> ⚠️ **모바일 탭 하이라이트 제거(수정)**: 모바일 브라우저는 버튼 등을 탭하면 기본적으로
+> 파란색/회색 하이라이트가 잠깐 덮이는데, 게임 UI에는 불필요하다는 피드백으로
+> `* { -webkit-tap-highlight-color: transparent; }`를 위 규칙에 같이 추가했습니다.
+
 ## 면책 조항 (신규)
 홈 화면 맨 아래(`#disclaimerText`, `#homeScreen`의 직계 자식, `position:absolute; bottom:1.5%`)에
 "비상업적 팬메이드 프로젝트이며 그래픽 리소스는 모바일 게임에서 발췌, 저작권자 요청 시 삭제"
@@ -630,13 +636,14 @@ container-type: inline-size;`)로 감쌌습니다. `.game-container`는 이제 `
 |---|---|
 | 노출 조건 | `@media (pointer: coarse)`(터치 기기 = 대부분 모바일/태블릿)일 때만 `display:flex`, 그 외(데스크톱)엔 숨김 |
 | 위치 | `.corner-btn`(설정 버튼)과 같은 원형 스타일 재사용, `top`/`left` 대신 `bottom:3%; right:2%`로 우측 하단에 배치 |
+| 크기(수정) | 다른 코너 버튼(5%)과 달리 `@media (pointer: coarse)` 안에서 `width: 7.5%; font-size: 2.4cqw;`로 별도로 더 크게 — 처음엔 9%였는데 너무 크다는 피드백으로 축소 |
 | 가로 고정 미지원 브라우저 | `screen.orientation.lock()`은 iOS Safari가 지원하지 않음 — 이 경우 전체화면은 켜지지만 가로 고정은 조용히 실패하고(`.catch(()=>{})`), 사용자가 기기를 직접 돌려야 함 |
 
 ## 오디오 시스템 (신규, `js/audio.js`)
 효과음(sfx)은 매번 처음부터 재생, 배경음악(bgm)은 한 번에 한 트랙만 반복 재생되도록
-`switchBgm()`이 이전 트랙을 확실히 멈추고 넘어갑니다. 전부 `main.js`의 `isAudioOn`(설정의
-소리 on/off)을 따라가며, 다른 파일들은 기존 크로스파일 호출 패턴과 동일하게
-`typeof X === 'function'`으로 감싸서 호출합니다.
+`switchBgm()`이 이전 트랙을 확실히 멈추고 넘어갑니다. 배경음악은 `main.js`의 `isMusicOn`,
+효과음은 `isSfxOn`을 각각 따로 따라가며(아래 "배경음악/효과음/음량 분리" 섹션 참고), 다른
+파일들은 기존 크로스파일 호출 패턴과 동일하게 `typeof X === 'function'`으로 감싸서 호출합니다.
 
 | 트리거 | 파일 | 위치 |
 |---|---|---|
@@ -647,6 +654,25 @@ container-type: inline-size;`)로 감쌌습니다. `.game-container`는 이제 `
 | 홈 화면 배경음악(`TribeFieldBGM.ogg`, 반복) | `main.js` | 최초 로드, `goHome()` |
 | 인게임 배경음악(`HomeBGM.ogg`, 반복) | `main.js` | `reallyStartGame()`, `restartGame()` |
 | 점수 2만(m) 돌파 시 아레나 배경음악(`TribeArenaBGM.ogg`, 반복)으로 페이드 전환 | `main.js`/`audio.js` | `gameLoop()`의 `ARENA_BGM_SCORE_THRESHOLD` 체크 → `fadeToArenaBgm()` (1.5초에 걸쳐 볼륨 0으로 줄인 뒤 트랙 교체) |
+
+### 배경음악/효과음/음량 분리 (신규)
+기존에는 소리 on/off가 `isAudioOn` 하나로 통합돼있어서 배경음악만 끄거나 효과음만 끄는 게
+불가능했습니다. "음악만 끄고 싶을 수도, 효과음만 끄고 싶을 수도, 소리 크기를 조절하고 싶을
+수도 있다"는 요청으로 `isMusicOn`/`isSfxOn` 두 개의 불리언 + `masterVolume`(0~1) 슬라이더로
+분리했습니다.
+
+| 항목 | 값 |
+|---|---|
+| 배경음악 on/off | 설정 패널 `#settingsMusicBtn`("배경음악") → `toggleMusic()` → `isMusicOn` 토글 → `applyMusicOnState()`(`audio.js`)가 현재 트랙을 즉시 멈추거나 재개 |
+| 효과음 on/off | 설정 패널 `#settingsSfxBtn`("효과음") → `toggleSfx()` → `isSfxOn` 토글(재생 시점에 `playSfx()`가 확인만 하므로 별도 즉시효과 없음) |
+| 음량 | 설정 패널 `#volumeSlider`(0~100 슬라이더) → `handleVolumeSliderInput()` → `masterVolume`(0~1) 갱신 → `audio.js`의 `setMasterVolume()`이 현재 배경음악 볼륨(`BGM_VOLUME * masterVolume`)에 즉시 반영. 효과음은 재생될 때마다 `playSfx()`에서 `audio.volume = masterVolume`을 매번 적용 |
+| 일시정지 메뉴 소리 버튼(`#soundBtn`) | 여전히 통합 토글 유지 — `toggleSound()`가 `isMusicOn`/`isSfxOn`을 **둘 다 동시에** on/off (하나라도 켜져 있으면 "켜짐"으로 표시, 껐다 켜면 둘 다 켜짐으로 복귀) |
+| 아이콘 동기화 | `syncSoundUI()`가 `updateSoundIconDisplay()`로 `#soundBtn`(`isMusicOn||isSfxOn` 기준)/`#settingsMusicBtn`(`isMusicOn`)/`#settingsSfxBtn`(`isSfxOn`) 세 버튼의 `.on` 클래스와 아이콘 표시를 한 번에 갱신 |
+| 설정 패널 진입 시 | `openSettings()`가 `syncSoundUI()`와 함께 `#volumeSlider.value`도 현재 `masterVolume`에 맞춰 다시 세팅 |
+
+> ⚠️ 음량 슬라이더는 배경음악과 효과음 볼륨을 각각 따로 조절하는 대신 하나로 공유합니다.
+> 배경음악/효과음을 완전히 분리해서 조절하고 싶다는 요구가 아니라 "소리 크기 조절"
+> 자체가 목적이었어서, UI 복잡도를 늘리지 않는 마스터 볼륨 하나로 충분하다고 판단했습니다.
 
 > ⚠️ **파일명에 공백**: `audio/button click.ogg`는 파일명에 띄어쓰기가 있어서 `new Audio(...)`에
 > 넣을 때 `audio/button%20click.ogg`로 퍼센트 인코딩했습니다. 이 파일을 다른 이름으로 바꾸면
